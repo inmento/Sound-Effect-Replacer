@@ -1,9 +1,11 @@
 # Changelog
 
-## 0.2.0 — Per-move sound assignments
+## 0.3.0 — Complete editable audio coverage
 
-Sound Effect Replacer now supports optional **Move Sounds**. The package includes a folder for every move: **165 folders** under `assets/Move Sounds/Gen 1/` for Red, Blue, and Yellow, plus **251 folders** under `assets/Move Sounds/Gold/` for Gold. Put one compatible audio file in a move folder and restart the game to add that sound whenever the move is used.
+Sound Effect Replacer now uses a simple two-folder workflow modeled on Easy Custom Music: `assets/General Sound Effects/` for friendly everyday categories and `assets/Specific Sound Effects/` for exact control. There are no player-facing Gen 1/Gold folder trees; the mod selects the correct internal cue for the game currently loaded.
 
-The Gen 1 and Gold trees are deliberately separate. A player can give Thunderbolt one sound in `Gen 1/THUNDERBOLT` and a different sound in `Gold/THUNDERBOLT`; Gold-only moves such as Future Sight have folders only in the Gold tree. Move Sounds play once per move use at the move announcement/animation-start point, respect the battle-animation setting, and currently add to any native sound rather than replacing it.
+The update adds direct folders for every current named engine effect: **104 Red/Blue/Yellow labels** and **187 Gold labels**, with exact Named Effects folders taking priority over a matching friendly General folder. It also provides one shared folder for each of **251 move IDs**, folders for **250 named species cries**, and a generated `SOUND_EFFECT_MAP.md` that documents every exact effect folder.
 
-The release retains the general sound-effect folders, Ogg Opus detection, Ogg Vorbis guidance, and generation-specific SFX mappings from the initial testing build. The updated source passed isolated Gen 1/Gold mapping and playback regressions plus current manifest, lint, syntax, and strict Gen 2 compatibility validation. Live testing is still required.
+Evolution is now editable at both stages. `Evolution In Progress` replaces the music while forms flash between one another; `Evolution Complete` replaces Gold’s native completion cue and adds a completion sound before the evolved Pokémon’s cry in Red/Blue/Yellow.
+
+The player-facing layout, complete catalog, Ogg Opus rejection, and Gen 1/Gold routing were checked in an isolated harness and current official validation tools. This remains a WIP/testing release and needs live tests for normal effects, exact effects, move sounds, both evolution stages, and cries.

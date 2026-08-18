@@ -6,7 +6,9 @@
 
 Easy Custom Music showed how a Gen1Recomp player can install a mod, place one compatible audio file in a clearly named asset folder, restart the game, and immediately hear a replacement. That user experience directly inspired this mod.
 
-Sound Effect Replacer is an independent implementation for the sound-effect registry. It uses its own Red/Blue/Yellow and Gold sound-effect mappings, adds Ogg Opus detection and warnings, and documents generation-specific limits where a game moment is music or a Pokémon cry rather than an overridable sound effect.
+**ty-mcdk explicitly gave permission to use Easy Custom Music’s code as a base for this sound-effects project** in the Gen1Recomp Discord discussion on August 17, 2026.
+
+Sound Effect Replacer is an independent implementation for the sound-effect registry. It uses its own Red/Blue/Yellow and Gold mappings, routes exact named effects, per-move sounds, evolution-progress music, evolution-completion audio, and optional species cries, and adds Ogg Opus detection with actionable warnings.
 
 ## Development disclosure
 
