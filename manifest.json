@@ -1,7 +1,7 @@
 {
   "id": "sound_effect_replacer",
   "name": "Sound Effect Replacer",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "api": 2,
   "entry": "main.lua",
   "profile": "content",
@@ -16,5 +16,5 @@
   "incompatible": [],
   "games": ["gen1", "gen2"],
   "experimental": false,
-  "description": "Replaces selected Red, Blue, Yellow, and Gold sound effects with user-supplied audio files."
+  "description": "Replaces selected game sound effects and adds optional per-move user audio in Red, Blue, Yellow, and Gold."
 }

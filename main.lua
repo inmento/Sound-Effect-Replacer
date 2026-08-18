@@ -1,12 +1,15 @@
--- Sound Effect Replacer 0.1.0
+-- Sound Effect Replacer 0.2.0
 -- API 2 content mod for Red, Blue, Yellow, and Gold.
 --
 -- User audio is scanned once at startup from this mod's assets/<folder>/ tree.
--- Each folder can replace one or more native cues; place one compatible file in
--- each folder and restart Gen1Recomp after changing files.
+-- Each general SFX folder replaces one or more native cues. Move Sounds uses
+-- separate assets/Move Sounds/Gen 1/<MOVE_ID>/ and
+-- assets/Move Sounds/Gold/<MOVE_ID>/ folders, allowing the same move to use
+-- intentionally different audio in the two generations.
 
 return function(mod)
   local GameVersion = require("src.core.GameVersion")
+  local Sound = require("src.core.Sound")
   local playing = GameVersion.get()
   local isGold = playing == "gold"
 
@@ -139,9 +142,55 @@ return function(mod)
     end
   end
 
+  -- Move Sounds is intentionally folder-per-move. This permits THUNDERBOLT
+  -- to use one file in Red/Blue/Yellow and a different file in Gold, without
+  -- asking players to rename files or select a generation in a menu.
+  local moveRoot = isGold and "assets/Move Sounds/Gold" or "assets/Move Sounds/Gen 1"
+  local moveSounds, moveFoldersLoaded = {}, 0
+  local rootInfo = mod:info(moveRoot)
+  if rootInfo and rootInfo.type == "directory" then
+    for _, moveId in ipairs(mod:list(moveRoot)) do
+      local moveDir = moveRoot .. "/" .. moveId
+      local moveInfo = mod:info(moveDir)
+      if moveInfo and moveInfo.type == "directory" and moveId:match("^[A-Z0-9_]+$") then
+        local relativeFile, filename = firstCompatibleFile(moveDir)
+        if relativeFile then
+          local sfxId = "SFX_SOUND_EFFECT_REPLACER_MOVE_" .. moveId
+          mod.content.sfx:register(sfxId, { file = mod.assets:path(relativeFile) })
+          moveSounds[moveId] = sfxId
+          moveFoldersLoaded = moveFoldersLoaded + 1
+          mod.log:info("Move Sounds %s: %s assigned to %s.", generationName, filename, moveId)
+        end
+      end
+    end
+  end
+
+  if next(moveSounds) then
+    -- This event fires once for every move use. It provides the actual move ID,
+    -- including moves called through Metronome or Mirror Move. Sound is played
+    -- at the move announcement / animation-start point, once per move use,
+    -- rather than repeating on every hit of a multi-hit move.
+    mod.events:on("battle.move_used", function(event)
+      local battle = event and event.battle
+      local move = event and event.move
+      local soundId = move and move.id and moveSounds[move.id]
+      if not battle or not soundId then return end
+      -- Native move SFX respect the battle-animation option, so custom move
+      -- sounds follow the same player preference.
+      if type(battle.animationsOn) == "function" and not battle:animationsOn() then
+        return
+      end
+      Sound.play(battle.data, soundId)
+    end)
+  end
+
   if foldersLoaded == 0 then
-    mod.log:warn("No replacement sounds were found for %s. Add one supported file to a folder under assets/ and restart.", generationName)
+    mod.log:warn("No general replacement sounds were found for %s. Add one supported file to a folder under assets/ and restart.", generationName)
   else
-    mod.log:info("Loaded %d replacement file(s), covering %d %s sound-effect cue(s).", foldersLoaded, cuesReplaced, generationName)
+    mod.log:info("Loaded %d general replacement file(s), covering %d %s sound-effect cue(s).", foldersLoaded, cuesReplaced, generationName)
+  end
+
+  if moveFoldersLoaded > 0 then
+    mod.log:info("Loaded %d %s Move Sounds assignment(s).", moveFoldersLoaded, generationName)
   end
 end

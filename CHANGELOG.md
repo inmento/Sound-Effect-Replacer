@@ -1,13 +1,9 @@
 # Changelog
 
-## 0.1.0 — Initial testing build
+## 0.2.0 — Per-move sound assignments
 
-- Added a new API 2 content mod for **Red, Blue, Yellow, and Gold**.
-- Added friendly asset folders for selected battle, capture, menu, item, overworld, PC, healing, status, and Pokédex sound effects.
-- Added verified generation-specific mappings rather than assuming Red/Blue/Yellow IDs match Gold IDs.
-- Added Gold-only replacement categories for evolution completion, egg hatching, and several named move effects.
-- Added startup diagnostics for loaded folders, missing replacements, large static audio files, and unsupported **Ogg Opus** streams.
-- Documented that `.ogg` files must contain **Ogg Vorbis**, not Ogg Opus.
-- Documented intentionally unsupported moments that are music, species cries, or currently anonymous Gen 1 battle SFX.
+Sound Effect Replacer now supports optional **Move Sounds**. The package includes a folder for every move: **165 folders** under `assets/Move Sounds/Gen 1/` for Red, Blue, and Yellow, plus **251 folders** under `assets/Move Sounds/Gold/` for Gold. Put one compatible audio file in a move folder and restart the game to add that sound whenever the move is used.
 
-This is a first testing build. It has passed isolated Gen 1 and Gold mapping regression checks plus current official manifest, lint, and strict Gen 2 compatibility validation. It still needs live in-game playback testing on all supported cartridge versions.
+The Gen 1 and Gold trees are deliberately separate. A player can give Thunderbolt one sound in `Gen 1/THUNDERBOLT` and a different sound in `Gold/THUNDERBOLT`; Gold-only moves such as Future Sight have folders only in the Gold tree. Move Sounds play once per move use at the move announcement/animation-start point, respect the battle-animation setting, and currently add to any native sound rather than replacing it.
+
+The release retains the general sound-effect folders, Ogg Opus detection, Ogg Vorbis guidance, and generation-specific SFX mappings from the initial testing build. The updated source passed isolated Gen 1/Gold mapping and playback regressions plus current manifest, lint, syntax, and strict Gen 2 compatibility validation. Live testing is still required.

@@ -1,6 +1,6 @@
 # Sound Effect Replacer
 
-**Sound Effect Replacer** lets players replace selected game sound effects with their own audio in **Pokémon Red, Blue, Yellow, and Gold** for Gen1Recomp.
+**Sound Effect Replacer** lets players replace selected game sound effects and add optional custom audio to individual moves in **Pokémon Red, Blue, Yellow, and Gold** for Gen1Recomp.
 
 Drop one compatible audio file into a named folder inside this mod’s `assets/` directory, then restart the game. The replacement applies to the corresponding in-game cue or cue group.
 
@@ -22,6 +22,22 @@ On a standard Windows installation, the active path is usually:
 The same audio file may be copied into as many different folders as desired. The only limit is **one usable audio file per individual folder**. If a folder contains more than one, the mod chooses the first supported filename alphabetically.
 
 Supported formats are `.ogg` (**Vorbis only**), `.wav`, `.mp3`, and `.flac`. Sound effects load as static audio, so short files are strongly recommended; the mod warns in its log when a replacement is larger than 5 MiB.
+
+## Move Sounds: one folder per move
+
+Version 0.2.0 adds an optional **Move Sounds** mode. It has a separate folder for every move in each supported generation, so the same move can deliberately use different audio in Gen 1 and Gold.
+
+```text
+assets/Move Sounds/Gen 1/THUNDERBOLT/your-sound.ogg
+assets/Move Sounds/Gold/THUNDERBOLT/your-other-sound.ogg
+assets/Move Sounds/Gold/FUTURE_SIGHT/your-sound.ogg
+```
+
+The mod ships with **165 Gen 1 move folders** and **251 Gold move folders**. Each move folder accepts one compatible audio file. The two trees are completely separate: a file in `Gen 1/THUNDERBOLT` is used only in Red, Blue, and Yellow, while a file in `Gold/THUNDERBOLT` is used only in Gold.
+
+A custom Move Sound plays **once when that move is used**, at the normal move announcement/animation-start point. This is intentionally not once per hit for multi-hit moves. It respects the game’s battle-animation setting: when battle animations are disabled, custom Move Sounds are silent too. In this first implementation, custom Move Sounds **add to** any native move sound rather than muting it. This makes it safe to assign audio to moves that never had an identifiable original sound effect.
+
+> **Example:** Put a Vorbis file in `assets/Move Sounds/Gen 1/THUNDERBOLT/` and restart. Thunderbolt will use that extra custom sound in Red/Blue/Yellow. Place a different Vorbis file in the Gold Thunderbolt folder to give Gold a different Thunderbolt sound.
 
 ## Replacement folders
 
@@ -81,13 +97,13 @@ This mod replaces **sound effects only**. Some moments that seem like sound effe
 | Red/Blue/Yellow evolution completion | Uses evolution music followed by the evolved Pokémon’s cry, rather than a standalone SFX. |
 | Gold Pokémon Center recovery | Uses a music jingle rather than a standalone SFX. |
 | Pokémon cries | They are species-specific cry data, not general SFX. |
-| Several Gen 1 move sounds | The current R/B/Y extracted data exposes them as anonymous `Battle_XX` IDs. They need an explicitly verified mapping before a friendly folder can safely replace them. |
+| Several Gen 1 move sounds | The current R/B/Y extracted data exposes them as anonymous `Battle_XX` IDs. The general SFX folders do not guess at these mappings; use the new per-move `Move Sounds/Gen 1/<MOVE_ID>/` folder instead. |
 
 ## Diagnostics
 
 If an `.ogg` file is actually Ogg Opus, the mod skips it and logs a message telling the player to re-encode it as Ogg Vorbis. It also logs each loaded folder and a warning when no replacement files are found.
 
-This first build is intended for testing. Please test one folder at a time, starting with `Battle Damage`, `Menu Open`, or `Level Up`, and report the game version, folder name, and any **MOD ERRORS** text if a replacement does not play.
+This testing build now includes per-move audio. Please test one general folder and one Move Sounds folder at a time—`Move Sounds/Gen 1/THUNDERBOLT` or `Move Sounds/Gold/FUTURE_SIGHT` are good first choices—and report the game version, exact folder, move used, and any **MOD ERRORS** text if a replacement does not play.
 
 ## Credits
 
