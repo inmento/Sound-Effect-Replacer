@@ -1,4 +1,4 @@
--- Sound Effect Replacer 0.3.1
+-- Sound Effect Replacer 0.3.2
 --
 -- A content mod for Red, Blue, Yellow, and Gold. The player-facing layout
 -- deliberately follows the simple Easy Custom Music model:
@@ -12,6 +12,7 @@
 
 return function(mod)
   local GameVersion = require("src.core.GameVersion")
+  local ChipAsm = require("src.audio.ChipAsm")
   local Sound = require("src.core.Sound")
   local POTATO_VOXEL_MOD_ID = "potato_voxel"
   local POTATO_VOXEL_STARTUP_SFX = "SFX_SOUND_EFFECT_REPLACER_POTATO_VOXEL_DETECTED"
@@ -1475,13 +1476,27 @@ local Catalog = {
 
   -- PotatoVoxel is optional. The manifest's optional dependency makes its
   -- handle available here only when it is installed and enabled; Sound Effect
-  -- Replacer remains fully usable when it is absent. The bundled WAV is not in
-  -- a player replacement folder, so it cannot override any native game sound.
+  -- Replacer remains fully usable when it is absent. The confirmation cue is
+  -- authored in Lua through the supported ChipAsm API, so it has no external
+  -- audio asset and cannot override any native game sound.
   local potatoVoxel = type(mod.find) == "function" and mod.find(POTATO_VOXEL_MOD_ID) or nil
   if potatoVoxel and mod.events and type(mod.events.on) == "function" then
-    mod.content.sfx:register(POTATO_VOXEL_STARTUP_SFX, {
-      file = mod.assets:path("assets/Supplied Sounds/potato_voxel_detected.wav"),
-    })
+    mod.content.sfx:register(POTATO_VOXEL_STARTUP_SFX, ChipAsm.sfx({
+      -- A short original upward confirmation cue: approximately 728 Hz, then
+      -- 904 Hz. The two notes total seven frames (about 117 ms) and use a fast
+      -- decay to keep the result crisp and unobtrusive.
+      engine = 1,
+      channels = {
+        {
+          hw = 1,
+          program = {
+            { duty = 2 },
+            { squareNote = { len = 3, volume = 15, fade = -7, frequency = 0x74C } },
+            { squareNote = { len = 4, volume = 15, fade = -7, frequency = 0x76F } },
+          },
+        },
+      },
+    }))
 
     local potatoVoxelSoundPlayed = false
     mod.events:on("game.ready", function(event)
@@ -1491,9 +1506,9 @@ local Catalog = {
       if not data then return end
       potatoVoxelSoundPlayed = true
       if Sound.play(data, POTATO_VOXEL_STARTUP_SFX) then
-        mod.log:info("PotatoVoxel detected; played supplied startup confirmation sound.")
+        mod.log:info("PotatoVoxel detected; played Lua-authored startup confirmation sound.")
       else
-        mod.log:warn("PotatoVoxel detected, but the supplied startup confirmation sound could not be played.")
+        mod.log:warn("PotatoVoxel detected, but the Lua-authored startup confirmation sound could not be played.")
       end
     end)
   end

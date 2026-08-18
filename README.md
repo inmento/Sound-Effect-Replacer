@@ -113,11 +113,11 @@ Every folder is optional. Empty folders leave the native game audio unchanged.
 
 ## Included PotatoVoxel Detection Sound
 
-Version 0.3.2 includes `assets/Supplied Sounds/potato_voxel_detected.wav`, an **original** 110 ms retro-style confirmation sound. It is a bundled integration asset, not a player replacement folder and not a replacement for any native game sound.
+Version 0.3.2 includes an **original Lua-authored chip confirmation sound** for the optional [PotatoVoxel](https://github.com/ShaneMcGovernIE/potato_voxel) integration. The cue is assembled at runtime through Gen1Recomp’s supported `src.audio.ChipAsm` API; it does not include a WAV or any other external audio asset, and it does not replace a native game sound.
 
-When [PotatoVoxel](https://github.com/ShaneMcGovernIE/potato_voxel) is installed and enabled, Sound Effect Replacer detects its manifest ID (`potato_voxel`) during boot and plays this one short confirmation sound once after the game services are ready. When PotatoVoxel is absent, disabled, or fails to load, it stays completely quiet. PotatoVoxel remains optional; Sound Effect Replacer does not require it.
+When PotatoVoxel is installed and enabled, Sound Effect Replacer detects its manifest ID (`potato_voxel`) during boot and plays the short, two-part upward confirmation cue once after the game services are ready. When PotatoVoxel is absent, disabled, or fails to load, it stays completely quiet. PotatoVoxel remains optional; Sound Effect Replacer does not require it.
 
-The exact deterministic synthesis source is included at [`tools/generate_potato_voxel_detected.py`](tools/generate_potato_voxel_detected.py). Running that script regenerates the bundled WAV at the same path. The sound is 44,100 Hz, mono, 16-bit PCM, and 110 ms long.
+The cue uses a square-wave channel with fast decay, moving from approximately 728 Hz to 904 Hz across seven chip frames (about 117 ms). Its complete original definition is contained in `main.lua`, so there is no separate asset to copy, extract, or reproduce.
 
 ## Desktop and Mobile Support
 

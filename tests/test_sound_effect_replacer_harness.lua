@@ -1,10 +1,11 @@
--- Isolated regression harness for Sound Effect Replacer 0.3.1.
+-- Isolated regression harness for Sound Effect Replacer 0.3.2.
 -- Exercises the public mod-object surface without starting Gen1Recomp.
 
 local activeGame = "red"
 local played = {}
 local nativePikaCalls = {}
 local latestSound = nil
+local latestChipSfx = nil
 local gameFacade = { data = nil }
 
 package.preload["src.core.GameVersion"] = function()
@@ -25,15 +26,25 @@ package.preload["src.core.Sound"] = function()
   return sound
 end
 package.preload["src.core.Game"] = function() return gameFacade end
+package.preload["src.audio.ChipAsm"] = function()
+  return {
+    sfx = function(spec)
+      latestChipSfx = spec
+      return { chip = { authored = spec } }
+    end,
+  }
+end
 
 local function run(game, files, foundMods)
   activeGame = game
   played = {}
   nativePikaCalls = {}
   gameFacade.data = { audio = {} }
+  latestChipSfx = nil
   package.loaded["src.core.GameVersion"] = nil
   package.loaded["src.core.Sound"] = nil
   package.loaded["src.core.Game"] = nil
+  package.loaded["src.audio.ChipAsm"] = nil
 
   local overrides, registered = { sfx = {}, cries = {}, music = {} }, { sfx = {}, music = {} }
   local warnings, infos, events, hooks = {}, {}, {}, {}
@@ -41,7 +52,7 @@ local function run(game, files, foundMods)
     content = {
       sfx = {
         override = function(_, id, def) overrides.sfx[id] = def.file end,
-        register = function(_, id, def) registered.sfx[id] = def.file end,
+        register = function(_, id, def) registered.sfx[id] = def.file or def end,
       },
       cries = {
         override = function(_, id, def) overrides.cries[id] = def.file end,
@@ -226,20 +237,32 @@ local nativeClip = latestSound.playPikaCry({ audio = { pikaCries = 42 } }, 12)
 assert(nativeClip and nativeClip.native == 12)
 assert(#nativePikaCalls == 1 and nativePikaCalls[1].index == 12)
 
--- PotatoVoxel is optional: no detection means no supplied startup SFX is
--- registered or played, preserving ordinary Sound Effect Replacer behavior.
+-- PotatoVoxel is optional: no detection means no startup SFX is registered
+-- or played, preserving ordinary Sound Effect Replacer behavior.
 local _, absentRegistered, _, _, absentEvents = run("red", {})
 assert(absentRegistered.sfx.SFX_SOUND_EFFECT_REPLACER_POTATO_VOXEL_DETECTED == nil)
 assert(absentEvents["game.ready"] == nil)
 
--- A loaded PotatoVoxel handle enables the supplied original WAV. The event
--- handler must use the live game data and play exactly once even if game.ready
--- is re-emitted by a development hot reload.
+-- A loaded PotatoVoxel handle enables the original Lua-authored chip cue.
+-- The event handler must use the live game data and play exactly once even if
+-- game.ready is re-emitted by a development hot reload.
 local _, potatoRegistered, _, _, potatoEvents = run("gold", {}, {
   potato_voxel = { id = "potato_voxel", version = "1.7.11", exports = {} },
 })
-assert(potatoRegistered.sfx.SFX_SOUND_EFFECT_REPLACER_POTATO_VOXEL_DETECTED
-  == "mods/sound_effect_replacer/assets/Supplied Sounds/potato_voxel_detected.wav")
+local potatoCue = potatoRegistered.sfx.SFX_SOUND_EFFECT_REPLACER_POTATO_VOXEL_DETECTED
+assert(type(potatoCue) == "table" and potatoCue.chip and potatoCue.chip.authored,
+  "PotatoVoxel cue must be registered as a ChipAsm SFX")
+local potatoProgram = potatoCue.chip.authored
+assert(potatoProgram.engine == 1 and #potatoProgram.channels == 1,
+  "PotatoVoxel cue must use the intended engine-1 square channel program")
+local potatoRows = potatoProgram.channels[1].program
+assert(potatoRows[1].duty == 2
+  and potatoRows[2].squareNote.frequency == 0x74C
+  and potatoRows[2].squareNote.len == 3
+  and potatoRows[3].squareNote.frequency == 0x76F
+  and potatoRows[3].squareNote.len == 4,
+  "PotatoVoxel cue must retain its original two-part upward confirmation shape")
+assert(latestChipSfx == potatoProgram, "PotatoVoxel cue must be assembled through ChipAsm.sfx")
 assert(potatoEvents["game.ready"], "PotatoVoxel detection must subscribe to game.ready")
 local startupGame = { data = { audio = { sfx = {} } } }
 potatoEvents["game.ready"]({ game = startupGame })
