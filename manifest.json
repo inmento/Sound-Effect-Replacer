@@ -8,6 +8,7 @@
   "game_version": ">=0.1.99",
   "category": "AUDIO",
   "priority": 100,
+  "github": "inmento/Sound-Effect-Replacer",
   "permissions": ["engine_internals"],
   "dependencies": [],
   "optional_dependencies": [],
