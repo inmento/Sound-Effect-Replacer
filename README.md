@@ -111,6 +111,14 @@ Sound effects load as static audio, so short files are recommended. The mod warn
 
 Every folder is optional. Empty folders leave the native game audio unchanged.
 
+## Desktop and Mobile Support
+
+**Desktop is the supported way to customize this mod.** On Windows, Linux, and macOS, place your replacement files in the matching folders under Sound Effect Replacer’s installed `assets/` directory, then fully restart Gen1Recomp.
+
+Sound Effect Replacer does **not** include an in-game arbitrary-audio importer. Gen1Recomp’s protected user-file import flow is designed for specifically declared, hash-verified files. That security model is appropriate for known files such as supported ROMs or backups, but it cannot safely accept any arbitrary custom audio track a player selects. This mod intentionally does not bypass that protection.
+
+Android users can install and enable Sound Effect Replacer, but customizing its audio requires access to the installed mod folder. On most standard Android devices, that folder is not writable through ordinary file-manager access. **Mobile audio customization is therefore unsupported without root access.** On a rooted device, place one supported audio file in the desired existing target folder and fully restart Gen1Recomp. A secure built-in custom-audio import feature would require future engine support.
+
 ## Testing Focus
 
 This is a testing build. Please first test one friendly General folder, one exact Named Effects folder, one Move Sounds folder, and both evolution folders. Useful controls are:
