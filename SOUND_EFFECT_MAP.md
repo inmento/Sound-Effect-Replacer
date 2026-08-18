@@ -375,6 +375,6 @@ The current engine exposes **104** named Red/Blue/Yellow effects and **187** nam
 
 ## Audio format and precedence
 
-Use Ogg Vorbis for `.ogg` files. Ogg Opus is detected and skipped because it is not supported by the current LÖVE runtime. The first supported filename alphabetically within a folder is used. An exact Named Effects folder wins over a populated General Sound Effects shortcut for the same internal cue.
+The mod accepts every audio extension decoded by the LÖVE 11.5 runtime bundled with Gen1Recomp 0.2.3: Ogg Vorbis (`.ogg`, `.oga`, `.ogv`), `.wav`, `.mp3`, `.flac`, and the tracker/module extensions `.699`, `.abc`, `.amf`, `.ams`, `.dbm`, `.dmf`, `.dsm`, `.far`, `.it`, `.j2b`, `.mdl`, `.med`, `.mid`, `.mod`, `.mt2`, `.mtm`, `.okt`, `.pat`, `.psm`, `.s3m`, `.stm`, `.ult`, `.umx`, and `.xm`. Ogg Opus is detected and skipped because it is not supported by the current runtime. The first supported filename alphabetically within a folder is used. An exact Named Effects folder wins over a populated General Sound Effects shortcut for the same internal cue.
 
 Every folder is optional. Empty folders leave the game’s native audio unchanged.

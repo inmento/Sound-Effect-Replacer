@@ -1,4 +1,4 @@
--- Sound Effect Replacer 0.3.0
+-- Sound Effect Replacer 0.3.1
 --
 -- A content mod for Red, Blue, Yellow, and Gold. The player-facing layout
 -- deliberately follows the simple Easy Custom Music model:
@@ -1148,11 +1148,46 @@ local Catalog = {
   local isGold = playing == "gold"
   local generationName = isGold and "Gold" or "Red/Blue/Yellow"
 
+  -- These are the audio extensions decoded by the LÖVE 11.5 runtime bundled
+  -- with Gen1Recomp 0.2.3: MP3, WAV, FLAC, Ogg Vorbis aliases, and libmodplug
+  -- tracker/module formats. Ogg Opus still needs separate rejection below.
   local SUPPORTED_FORMATS = {
     mp3 = true,
-    ogg = true,
     wav = true,
     flac = true,
+    ogg = true,
+    oga = true,
+    ogv = true,
+
+    ["699"] = true,
+    abc = true,
+    amf = true,
+    ams = true,
+    dbm = true,
+    dmf = true,
+    dsm = true,
+    far = true,
+    it = true,
+    j2b = true,
+    mdl = true,
+    med = true,
+    mid = true,
+    mod = true,
+    mt2 = true,
+    mtm = true,
+    okt = true,
+    pat = true,
+    psm = true,
+    s3m = true,
+    stm = true,
+    ult = true,
+    umx = true,
+    xm = true,
+  }
+  local OGG_VORBIS_EXTENSIONS = {
+    ogg = true,
+    oga = true,
+    ogv = true,
   }
   local MAX_RECOMMENDED_SFX_BYTES = 5 * 1024 * 1024
   local GENERAL_ROOT = "assets/General Sound Effects"
@@ -1210,10 +1245,10 @@ local Catalog = {
     return type(name) == "string" and name:match("^.+%.([^.]+)$")
   end
 
-  -- An .ogg filename can contain Vorbis (supported by LÖVE) or Opus
-  -- (unsupported in the current Gen1Recomp runtime). Detect the Opus packet
-  -- before registering the file, turning an otherwise silent failure into a
-  -- direct, actionable log message.
+  -- An Ogg-family filename (.ogg, .oga, or .ogv) can contain Vorbis
+  -- (supported by the current Gen1Recomp runtime) or Opus (unsupported).
+  -- Detect the Opus packet before registering the file, turning an otherwise
+  -- silent failure into a direct, actionable log message.
   local function isOggOpus(relative, info)
     if not info or not info.size or info.size > MAX_RECOMMENDED_SFX_BYTES then
       return false
@@ -1235,12 +1270,13 @@ local Catalog = {
     table.sort(items)
     for _, name in ipairs(items) do
       local ext = extension(name)
-      if ext and SUPPORTED_FORMATS[ext:lower()] then
+      local normalizedExt = ext and ext:lower()
+      if normalizedExt and SUPPORTED_FORMATS[normalizedExt] then
         local relative = relativeDir .. "/" .. name
         local info = mod:info(relative)
         if info and info.type == "file" then
-          if ext:lower() == "ogg" and isOggOpus(relative, info) then
-            mod.log:warn("Skipped Ogg Opus file in %s: %s. Re-encode it as Ogg Vorbis.", relativeDir, name)
+          if OGG_VORBIS_EXTENSIONS[normalizedExt] and isOggOpus(relative, info) then
+            mod.log:warn("Skipped Ogg Opus file in %s: %s. Re-encode it as Ogg Vorbis (.ogg, .oga, or .ogv).", relativeDir, name)
           else
             if info.size and info.size > MAX_RECOMMENDED_SFX_BYTES then
               mod.log:warn("Large static sound in %s: %s is %.1f MiB. Short files are recommended.", relativeDir, name, info.size / (1024 * 1024))

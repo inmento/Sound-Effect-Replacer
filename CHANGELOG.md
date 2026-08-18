@@ -1,11 +1,9 @@
 # Changelog
 
-## 0.3.0 — Complete editable audio coverage
+## 0.3.1 — Expanded runtime audio-format support
 
-Sound Effect Replacer now uses a simple two-folder workflow modeled on Easy Custom Music: `assets/General Sound Effects/` for friendly everyday categories and `assets/Specific Sound Effects/` for exact control. There are no player-facing Gen 1/Gold folder trees; the mod selects the correct internal cue for the game currently loaded.
+Sound Effect Replacer now accepts every audio extension decoded by the LÖVE 11.5 runtime bundled with [Gen1Recomp 0.2.3](https://github.com/bryanthaboi/gen1recomp/releases/tag/v0.2.3). In addition to `.mp3`, `.wav`, `.flac`, and Ogg Vorbis, this adds Ogg Vorbis aliases `.oga` and `.ogv` plus the runtime’s tracker/module formats: `.699`, `.abc`, `.amf`, `.ams`, `.dbm`, `.dmf`, `.dsm`, `.far`, `.it`, `.j2b`, `.mdl`, `.med`, `.mid`, `.mod`, `.mt2`, `.mtm`, `.okt`, `.pat`, `.psm`, `.s3m`, `.stm`, `.ult`, `.umx`, and `.xm`.
 
-The update adds direct folders for every current named engine effect: **104 Red/Blue/Yellow labels** and **187 Gold labels**, with exact Named Effects folders taking priority over a matching friendly General folder. It also provides one shared folder for each of **251 move IDs**, folders for **250 named species cries**, and a generated `SOUND_EFFECT_MAP.md` that documents every exact effect folder.
+Ogg Opus remains unsupported by this runtime. The mod now applies its actionable Opus detection to `.ogg`, `.oga`, and `.ogv`, so an incompatible stream is logged and skipped instead of failing silently. The README and coverage map now list the full accepted extension set.
 
-Evolution is now editable at both stages. `Evolution In Progress` replaces the music while forms flash between one another; `Evolution Complete` replaces Gold’s native completion cue and adds a completion sound before the evolved Pokémon’s cry in Red/Blue/Yellow.
-
-The player-facing layout, complete catalog, Ogg Opus rejection, and Gen 1/Gold routing were checked in an isolated harness and current official validation tools. This remains a WIP/testing release and needs live tests for normal effects, exact effects, move sounds, both evolution stages, and cries.
+This remains a WIP/testing release. In addition to the existing routing tests, please try at least one newly accepted tracker/module file in a simple General Sound Effects folder and report the exact filename, game, and any **MOD ERRORS** text.

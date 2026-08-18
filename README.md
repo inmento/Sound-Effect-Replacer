@@ -10,7 +10,7 @@ assets/
 
 Place one compatible audio file in any selected folder, fully restart Gen1Recomp, and the mod routes it to the matching cue for the game currently loaded. There are **no player-facing Gen 1 or Gold folder trees**. A shared folder such as `Move Sounds/THUNDERBOLT` works in every supported game where Thunderbolt exists; a Gold-only folder such as `Move Sounds/FUTURE_SIGHT` simply does nothing outside Gold.
 
-> **For `.ogg` files, use Ogg Vorbis—not Ogg Opus.** Both use the `.ogg` extension, but the current LÖVE runtime can play Vorbis and cannot play Opus. The mod detects and skips Opus files with a diagnostic warning.
+> **For any Ogg-family file (`.ogg`, `.oga`, or `.ogv`), use Ogg Vorbis—not Ogg Opus.** The current Gen1Recomp runtime can play Vorbis but cannot play Opus. The mod detects and skips Opus files with a diagnostic warning.
 
 ## General Sound Effects
 
@@ -97,7 +97,17 @@ See **[SOUND_EFFECT_MAP.md](SOUND_EFFECT_MAP.md)** for the full generated catalo
 
 The same audio file may be copied to as many folders as desired. Each individual folder should contain **one usable replacement file**. If a folder contains several supported files, the mod uses the first filename alphabetically.
 
-Supported formats are `.ogg` (**Vorbis only**), `.wav`, `.mp3`, and `.flac`. Sound effects load as static audio, so short files are recommended. The mod warns when a replacement is larger than 5 MiB.
+Sound Effect Replacer accepts every audio extension decoded by the LÖVE 11.5 runtime bundled with Gen1Recomp 0.2.3:
+
+| Format family | Accepted extensions |
+|---|---|
+| Ogg Vorbis | `.ogg`, `.oga`, `.ogv` |
+| Ordinary audio | `.wav`, `.mp3`, `.flac` |
+| Tracker and module audio | `.699`, `.abc`, `.amf`, `.ams`, `.dbm`, `.dmf`, `.dsm`, `.far`, `.it`, `.j2b`, `.mdl`, `.med`, `.mid`, `.mod`, `.mt2`, `.mtm`, `.okt`, `.pat`, `.psm`, `.s3m`, `.stm`, `.ult`, `.umx`, `.xm` |
+
+> **Ogg Opus is not supported.** `.ogg`, `.oga`, and `.ogv` files must contain Vorbis audio; the mod rejects an Opus stream before it can fail silently.
+
+Sound effects load as static audio, so short files are recommended. The mod warns when a replacement is larger than 5 MiB.
 
 Every folder is optional. Empty folders leave the native game audio unchanged.
 

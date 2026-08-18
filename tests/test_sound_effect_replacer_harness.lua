@@ -1,4 +1,4 @@
--- Isolated regression harness for Sound Effect Replacer 0.3.0.
+-- Isolated regression harness for Sound Effect Replacer 0.3.1.
 -- Exercises the public mod-object surface without starting Gen1Recomp.
 
 local activeGame = "red"
@@ -108,7 +108,7 @@ local opus = "OggS\0\2OpusHead"
 local gen1, gen1Registered, gen1Warnings, _, gen1Events, gen1Hooks = run("red", {
   ["assets/General Sound Effects/Battle Damage/general.ogg"] = vorbis,
   ["assets/Specific Sound Effects/Named Effects/Damage/exact.ogg"] = vorbis,
-  ["assets/Specific Sound Effects/Named Effects/Press_AB/unsupported.ogg"] = opus,
+  ["assets/Specific Sound Effects/Named Effects/Press_AB/unsupported.oga"] = opus,
   ["assets/Specific Sound Effects/Move Sounds/THUNDERBOLT/thunderbolt.ogg"] = vorbis,
   ["assets/Specific Sound Effects/Pokemon Cries/PIKACHU/pikachu.ogg"] = vorbis,
   ["assets/Specific Sound Effects/Evolution/Evolution In Progress/evolving.ogg"] = vorbis,
@@ -130,6 +130,36 @@ assert(gen1Events["battle.move_used"], "Move Sounds must subscribe to battle.mov
 assert(gen1Events["pokemon.evolved"], "Gen 1 Evolution Complete must subscribe to pokemon.evolved")
 assert(gen1Hooks["evolution.check"], "Gen 1 Evolution In Progress must wrap evolution.check")
 assert(#gen1Warnings >= 1, "Ogg Opus must produce an actionable warning")
+
+-- Every extension decoded by the LÖVE 11.5 runtime bundled with Gen1Recomp
+-- 0.2.3 must survive the mod's discovery filter. Runtime decoding itself is
+-- verified against that official build; this harness verifies the Lua routing.
+local runtimeExtensions = {
+  "mp3", "wav", "flac", "ogg", "oga", "ogv",
+  "699", "abc", "amf", "ams", "dbm", "dmf", "dsm", "far", "it",
+  "j2b", "mdl", "med", "mid", "mod", "mt2", "mtm", "okt", "pat",
+  "psm", "s3m", "stm", "ult", "umx", "xm",
+}
+local runtimeCueIds = {
+  "Ball_Poof", "Ball_Toss", "Battle_09", "Battle_0B", "Battle_0C",
+  "Battle_0D", "Battle_0E", "Battle_0F", "Battle_12", "Battle_13",
+  "Battle_14", "Battle_16", "Battle_17", "Battle_18", "Battle_19",
+  "Battle_1B", "Battle_1C", "Battle_1E", "Battle_20", "Battle_21",
+  "Battle_22", "Battle_23", "Battle_24", "Battle_25", "Battle_29",
+  "Battle_2A", "Battle_2B", "Battle_2E", "Battle_2F", "Battle_31",
+}
+local formatFiles = {}
+for index, ext in ipairs(runtimeExtensions) do
+  local cue = runtimeCueIds[index]
+  formatFiles["assets/Specific Sound Effects/Named Effects/" .. cue .. "/probe." .. ext] = "probe"
+end
+local formatOverrides = run("red", formatFiles)
+for index, ext in ipairs(runtimeExtensions) do
+  local cue = runtimeCueIds[index]
+  assert(formatOverrides.sfx[cue]
+    == "mods/sound_effect_replacer/assets/Specific Sound Effects/Named Effects/" .. cue .. "/probe." .. ext,
+    "Runtime extension ." .. ext .. " must be accepted for " .. cue)
+end
 
 -- Gen 1 progress changes only the pending evolution scene’s selected special song.
 local evolveGame = { data = { audio = {} } }
@@ -191,4 +221,4 @@ local nativeClip = latestSound.playPikaCry({ audio = { pikaCries = 42 } }, 12)
 assert(nativeClip and nativeClip.native == 12)
 assert(#nativePikaCalls == 1 and nativePikaCalls[1].index == 12)
 
-print("sound effect replacer 0.3 harness: passed")
+print("sound effect replacer 0.3.1 harness: passed")
