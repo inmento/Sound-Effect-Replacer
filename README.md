@@ -109,7 +109,22 @@ Sound Effect Replacer accepts every audio extension decoded by the LÖVE 11.5 ru
 
 Sound effects load as static audio, so short files are recommended. The mod warns when a replacement is larger than 5 MiB.
 
-Every folder is optional. Empty folders leave the native game audio unchanged.
+### Startup audio diagnostics
+
+On startup, the mod performs a **conservative** check of visible files in configured replacement folders. It skips only files with an unambiguous setup problem, leaving the native cue unchanged instead of registering a replacement that is already known to be wrong.
+
+| Code | Meaning | What to do |
+|---|---|---|
+| `SFXR-A01` | Unsupported filename extension | Convert the file to one of the listed supported formats. |
+| `SFXR-A02` | Ogg Opus stream | Re-encode the file as **Ogg Vorbis**. |
+| `SFXR-A03` | Clear `.ogg`, `.wav`, or `.flac` container/header mismatch | Export the file again in the format named by its extension. |
+| `SFXR-A04` | The diagnostic text box itself could not be queued | Read the mod log for the original file warning. |
+
+If the scan finds one or more of those problems, Sound Effect Replacer shows one normal Gen 1-style text box **after the player’s first overworld step**. The box tells the player to check the mod log; the log contains the specific code, replacement path, and reason. The message appears once per game launch and does not modify saves, encounters, battle state, or original sound definitions.
+
+This check intentionally does not claim to validate every codec. A file can have a plausible extension and container header but still fail when Gen1Recomp’s decoder first plays it; that later decoder error remains available under **MOD ERRORS** and in the log.
+
+Every folder is optional. Empty folders or startup-rejected files leave the native game audio unchanged.
 
 ## Included PotatoVoxel Detection Sound
 
@@ -125,7 +140,7 @@ The cue uses a square-wave channel with fast decay, moving from approximately 72
 
 Sound Effect Replacer does **not** include an in-game arbitrary-audio importer. Gen1Recomp’s protected user-file import flow is designed for specifically declared, hash-verified files. That security model is appropriate for known files such as supported ROMs or backups, but it cannot safely accept any arbitrary custom audio track a player selects. This mod intentionally does not bypass that protection.
 
-Android users can install and enable Sound Effect Replacer, but customizing its audio requires access to the installed mod folder. On most standard Android devices, that folder is not writable through ordinary file-manager access. **Mobile audio customization is therefore unsupported without root access.** On a rooted device, place one supported audio file in the desired existing target folder and fully restart Gen1Recomp. A secure built-in custom-audio import feature would require future engine support.
+Android users can install and enable Sound Effect Replacer, but customizing its audio requires access to the installed mod folder. Ordinary file-manager access is often blocked on standard devices. **Desktop remains the simplest supported setup method.** With a PC, Android USB debugging/ADB can also copy files into Gen1Recomp’s external app-files directory without root; a rooted device can use direct folder access. In every case, place one supported audio file in the desired existing target folder and fully restart Gen1Recomp. A secure built-in custom-audio import feature would require future engine support.
 
 ## Testing Focus
 
@@ -139,7 +154,7 @@ Specific Sound Effects/Evolution/Evolution In Progress/
 Specific Sound Effects/Evolution/Evolution Complete/
 ```
 
-When reporting a problem, include the game, exact folder, filename/codec, what action was performed, and any **MOD ERRORS** text.
+When reporting a problem, include the game, exact folder, filename/codec, what action was performed, any `SFXR-A##` code, and any **MOD ERRORS** text.
 
 ## Credits
 

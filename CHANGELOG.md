@@ -1,9 +1,9 @@
 # Changelog
 
-## 0.3.2 — PotatoVoxel startup confirmation
+## 0.3.3 — Audio diagnostics
 
-Sound Effect Replacer now recognizes an active [PotatoVoxel](https://github.com/ShaneMcGovernIE/potato_voxel) installation through its optional `potato_voxel` dependency and plays one short startup confirmation sound only when that mod is installed and enabled. PotatoVoxel is not required; when it is absent, disabled, or fails to load, Sound Effect Replacer remains silent and behaves normally.
+Sound Effect Replacer now performs a conservative startup check of visible replacement files. It detects unsupported extensions, Ogg Opus streams, and clear Ogg/WAV/FLAC header mismatches before those files can replace a game cue. Files with one of those unambiguous problems are skipped, so the corresponding native sound remains active.
 
-The confirmation cue is an original, file-free Lua chip SFX assembled through Gen1Recomp’s supported `src.audio.ChipAsm` API. Its square-wave program rises from approximately 728 Hz to 904 Hz with a fast decay across seven chip frames (about 117 ms). No WAV, generated audio file, copied game audio, or other external audio asset is included for this integration.
+When one or more startup-detectable problems are found, the mod shows a single normal in-game text box after the player’s first overworld step and directs the player to the mod log. The log provides the relevant `SFXR-A##` diagnostic code, path, and reason. The warning does not repeat during the same game launch.
 
-The README documents the optional integration and its original Lua-authored cue.
+This release also documents the distinction between startup checks and later decoder failures, plus Android customization through USB debugging/ADB without root.

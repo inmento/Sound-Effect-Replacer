@@ -6,7 +6,8 @@ local played = {}
 local nativePikaCalls = {}
 local latestSound = nil
 local latestChipSfx = nil
-local gameFacade = { data = nil }
+local shownTextBoxes = {}
+local gameFacade = { data = nil, stack = {} }
 
 package.preload["src.core.GameVersion"] = function()
   return { get = function() return activeGame end }
@@ -26,6 +27,13 @@ package.preload["src.core.Sound"] = function()
   return sound
 end
 package.preload["src.core.Game"] = function() return gameFacade end
+package.preload["src.render.TextBox"] = function()
+  return {
+    new = function(game, text)
+      return { game = game, text = text }
+    end,
+  }
+end
 package.preload["src.audio.ChipAsm"] = function()
   return {
     sfx = function(spec)
@@ -41,9 +49,14 @@ local function run(game, files, foundMods)
   nativePikaCalls = {}
   gameFacade.data = { audio = {} }
   latestChipSfx = nil
+  shownTextBoxes = {}
+  gameFacade.stack = {
+    push = function(_, box) shownTextBoxes[#shownTextBoxes + 1] = box end,
+  }
   package.loaded["src.core.GameVersion"] = nil
   package.loaded["src.core.Sound"] = nil
   package.loaded["src.core.Game"] = nil
+  package.loaded["src.render.TextBox"] = nil
   package.loaded["src.audio.ChipAsm"] = nil
 
   local overrides, registered = { sfx = {}, cries = {}, music = {} }, { sfx = {}, music = {} }
@@ -68,6 +81,7 @@ local function run(game, files, foundMods)
     events = {
       on = function(_, name, callback) events[name] = callback end,
     },
+    game = gameFacade,
     find = function(id)
       return foundMods and foundMods[id] or nil
     end,
@@ -125,6 +139,8 @@ local gen1, gen1Registered, gen1Warnings, _, gen1Events, gen1Hooks = run("red", 
   ["assets/General Sound Effects/Battle Damage/general.ogg"] = vorbis,
   ["assets/Specific Sound Effects/Named Effects/Damage/exact.ogg"] = vorbis,
   ["assets/Specific Sound Effects/Named Effects/Press_AB/unsupported.oga"] = opus,
+  ["assets/Specific Sound Effects/Named Effects/Start_Menu/wrong-format.wav"] = "not a wav",
+  ["assets/Specific Sound Effects/Named Effects/Save/unsupported.m4a"] = "not a supported runtime format",
   ["assets/Specific Sound Effects/Move Sounds/THUNDERBOLT/thunderbolt.ogg"] = vorbis,
   ["assets/Specific Sound Effects/Pokemon Cries/PIKACHU/pikachu.ogg"] = vorbis,
   ["assets/Specific Sound Effects/Evolution/Evolution In Progress/evolving.ogg"] = vorbis,
@@ -134,6 +150,8 @@ local gen1, gen1Registered, gen1Warnings, _, gen1Events, gen1Hooks = run("red", 
 -- Exact Named Effects load after General Sound Effects and therefore win.
 assert(gen1.sfx.Damage == "mods/sound_effect_replacer/assets/Specific Sound Effects/Named Effects/Damage/exact.ogg")
 assert(gen1.sfx.Press_AB == nil, "Ogg Opus exact effect must be skipped")
+assert(gen1.sfx.Start_Menu == nil, "header-mismatched WAV must be skipped so native audio remains")
+assert(gen1.sfx.Save == nil, "unsupported extension must be skipped so native audio remains")
 assert(gen1Registered.sfx.SFX_SOUND_EFFECT_REPLACER_MOVE_THUNDERBOLT
   == "mods/sound_effect_replacer/assets/Specific Sound Effects/Move Sounds/THUNDERBOLT/thunderbolt.ogg")
 assert(gen1.cries.PIKACHU
@@ -145,7 +163,16 @@ assert(gen1Registered.sfx.SFX_SOUND_EFFECT_REPLACER_EVOLUTION_COMPLETE
 assert(gen1Events["battle.move_used"], "Move Sounds must subscribe to battle.move_used")
 assert(gen1Events["pokemon.evolved"], "Gen 1 Evolution Complete must subscribe to pokemon.evolved")
 assert(gen1Hooks["evolution.check"], "Gen 1 Evolution In Progress must wrap evolution.check")
-assert(#gen1Warnings >= 1, "Ogg Opus must produce an actionable warning")
+assert(#gen1Warnings >= 3, "startup-detectable audio problems must produce actionable warnings")
+assert(gen1Events["world.stepped"], "audio diagnostics must defer a text box until overworld control")
+gen1Events["world.stepped"]({ mapId = "PALLET_TOWN" })
+assert(#shownTextBoxes == 1 and shownTextBoxes[1].game == gameFacade,
+  "first overworld step must queue exactly one standard text box")
+assert(shownTextBoxes[1].text == ("SFX REPLACER:" .. string.char(10)
+  .. "3 AUDIO ISSUES." .. string.char(10) .. "CHECK THE MOD LOG."),
+  "text box must summarize the detected startup diagnostics")
+gen1Events["world.stepped"]({ mapId = "PALLET_TOWN" })
+assert(#shownTextBoxes == 1, "diagnostic text box must not repeat on later steps")
 
 -- Every extension decoded by the LÖVE 11.5 runtime bundled with Gen1Recomp
 -- 0.2.3 must survive the mod's discovery filter. Runtime decoding itself is
@@ -165,9 +192,14 @@ local runtimeCueIds = {
   "Battle_2A", "Battle_2B", "Battle_2E", "Battle_2F", "Battle_31",
 }
 local formatFiles = {}
+local formatProbeBytes = {
+  ogg = vorbis, oga = vorbis, ogv = vorbis,
+  wav = "RIFF\0\0\0\0WAVE", flac = "fLaC",
+}
 for index, ext in ipairs(runtimeExtensions) do
   local cue = runtimeCueIds[index]
-  formatFiles["assets/Specific Sound Effects/Named Effects/" .. cue .. "/probe." .. ext] = "probe"
+  formatFiles["assets/Specific Sound Effects/Named Effects/" .. cue .. "/probe." .. ext]
+    = formatProbeBytes[ext] or "probe"
 end
 local formatOverrides = run("red", formatFiles)
 for index, ext in ipairs(runtimeExtensions) do
@@ -270,4 +302,4 @@ potatoEvents["game.ready"]({ game = startupGame })
 assert(#played == 1 and played[1].data == startupGame.data
   and played[1].id == "SFX_SOUND_EFFECT_REPLACER_POTATO_VOXEL_DETECTED")
 
-print("sound effect replacer 0.3.2 harness: passed")
+print("sound effect replacer audio diagnostics harness: passed")

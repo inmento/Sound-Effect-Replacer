@@ -1,4 +1,4 @@
--- Sound Effect Replacer 0.3.2
+-- Sound Effect Replacer 0.3.3
 --
 -- A content mod for Red, Blue, Yellow, and Gold. The player-facing layout
 -- deliberately follows the simple Easy Custom Music model:
@@ -1195,6 +1195,15 @@ local Catalog = {
   local MAX_RECOMMENDED_SFX_BYTES = 5 * 1024 * 1024
   local GENERAL_ROOT = "assets/General Sound Effects"
   local SPECIFIC_ROOT = "assets/Specific Sound Effects"
+  local diagnostics, diagnosticSeen = {}, {}
+
+  local function addDiagnostic(code, relative, detail)
+    local key = code .. "|" .. relative
+    if diagnosticSeen[key] then return end
+    diagnosticSeen[key] = true
+    diagnostics[#diagnostics + 1] = { code = code, relative = relative, detail = detail }
+    mod.log:warn("%s: %s (%s).", code, relative, detail)
+  end
 
   -- These friendly folders cover the normal things a player expects to change
   -- first. A more exact replacement is always available under Specific Sound
@@ -1248,16 +1257,49 @@ local Catalog = {
     return type(name) == "string" and name:match("^.+%.([^.]+)$")
   end
 
-  -- An Ogg-family filename (.ogg, .oga, or .ogv) can contain Vorbis
-  -- (supported by the current Gen1Recomp runtime) or Opus (unsupported).
-  -- Detect the Opus packet before registering the file, turning an otherwise
-  -- silent failure into a direct, actionable log message.
-  local function isOggOpus(relative, info)
+  -- The mod can inspect its own supplied bytes, but it deliberately does not
+  -- attempt a full decoder preflight: the runtime owns that operation and some
+  -- supported module formats do not have a single stable magic signature.
+  -- These checks therefore catch only actionable, unambiguous setup mistakes.
+  local function probeBytes(relative, info)
     if not info or not info.size or info.size > MAX_RECOMMENDED_SFX_BYTES then
-      return false
+      return nil
     end
     local ok, data = pcall(function() return mod:read(relative) end)
-    return ok and type(data) == "string" and data:find("OpusHead", 1, true) ~= nil
+    if ok and type(data) == "string" then return data end
+    return nil
+  end
+
+  local function headerProblem(normalizedExt, data)
+    if not data then return nil end
+    if OGG_VORBIS_EXTENSIONS[normalizedExt] then
+      if data:sub(1, 4) ~= "OggS" then return "the file does not have an Ogg container header" end
+      if data:find("OpusHead", 1, true) then return "Ogg Opus is unsupported; re-encode as Ogg Vorbis" end
+    elseif normalizedExt == "wav" then
+      if data:sub(1, 4) ~= "RIFF" or data:sub(9, 12) ~= "WAVE" then
+        return "the file does not have a WAV header"
+      end
+    elseif normalizedExt == "flac" and data:sub(1, 4) ~= "fLaC" then
+      return "the file does not have a FLAC header"
+    end
+    return nil
+  end
+
+  local function inspectReplacementFile(relative, name, info)
+    if not name or name:sub(1, 1) == "." then return false end
+    local ext = extension(name)
+    local normalizedExt = ext and ext:lower()
+    if not normalizedExt or not SUPPORTED_FORMATS[normalizedExt] then
+      addDiagnostic("SFXR-A01", relative, "unsupported extension")
+      return false
+    end
+    local problem = headerProblem(normalizedExt, probeBytes(relative, info))
+    if problem then
+      local code = problem:find("Opus", 1, true) and "SFXR-A02" or "SFXR-A03"
+      addDiagnostic(code, relative, problem)
+      return false
+    end
+    return true
   end
 
   local function firstCompatibleFile(relativeDir)
@@ -1272,21 +1314,13 @@ local Catalog = {
     local items = mod:list(relativeDir) or {}
     table.sort(items)
     for _, name in ipairs(items) do
-      local ext = extension(name)
-      local normalizedExt = ext and ext:lower()
-      if normalizedExt and SUPPORTED_FORMATS[normalizedExt] then
-        local relative = relativeDir .. "/" .. name
-        local info = mod:info(relative)
-        if info and info.type == "file" then
-          if OGG_VORBIS_EXTENSIONS[normalizedExt] and isOggOpus(relative, info) then
-            mod.log:warn("Skipped Ogg Opus file in %s: %s. Re-encode it as Ogg Vorbis (.ogg, .oga, or .ogv).", relativeDir, name)
-          else
-            if info.size and info.size > MAX_RECOMMENDED_SFX_BYTES then
-              mod.log:warn("Large static sound in %s: %s is %.1f MiB. Short files are recommended.", relativeDir, name, info.size / (1024 * 1024))
-            end
-            return relative, name
-          end
+      local relative = relativeDir .. "/" .. name
+      local info = mod:info(relative)
+      if info and info.type == "file" and inspectReplacementFile(relative, name, info) then
+        if info.size and info.size > MAX_RECOMMENDED_SFX_BYTES then
+          mod.log:warn("Large static sound in %s: %s is %.1f MiB. Short files are recommended.", relativeDir, name, info.size / (1024 * 1024))
         end
+        return relative, name
       end
     end
     return nil
@@ -1472,6 +1506,38 @@ local Catalog = {
     mod.log:warn("No replacement audio found for %s. Add one compatible file under General Sound Effects or Specific Sound Effects, then restart.", generationName)
   else
     mod.log:info("Loaded %d general folders / %d cues, %d exact named effects, %d move sounds, %d cry replacements, and %d Yellow voice clips for %s.", generalFolders, generalCues, exactCues, moveFolders, cryCues, pikaFolders, generationName)
+  end
+
+  -- A standard text box is intentionally deferred until the player has taken
+  -- an overworld step. game.ready precedes title/intro flow, while world.stepped
+  -- is emitted from the normal overworld step completion path. The message is
+  -- advisory only: bad files have already been skipped, so it never suppresses
+  -- a native cue or changes gameplay state beyond the ordinary textbox pause.
+  if #diagnostics > 0 and mod.events and type(mod.events.on) == "function" then
+    local warningShown = false
+    mod.events:on("world.stepped", function()
+      if warningShown then return end
+      warningShown = true
+
+      local game = mod.game
+      if not (game and game.stack and type(game.stack.push) == "function") then
+        mod.log:warn("SFXR-A04: Audio diagnostics were found, but the in-game text box could not be queued. Check the mod log.")
+        return
+      end
+      local ok, TextBox = pcall(require, "src.render.TextBox")
+      if not ok or not TextBox or type(TextBox.new) ~= "function" then
+        mod.log:warn("SFXR-A04: Audio diagnostics were found, but the in-game text box is unavailable. Check the mod log.")
+        return
+      end
+
+      local first = diagnostics[1]
+      local count = #diagnostics
+      local text = count == 1
+        and ("SFX REPLACER:\n" .. first.code .. " FOUND.\nCHECK THE MOD LOG.")
+        or ("SFX REPLACER:\n" .. count .. " AUDIO ISSUES.\nCHECK THE MOD LOG.")
+      game.stack:push(TextBox.new(game, text))
+      mod.log:info("SFXR diagnostic text box shown after first overworld step (%d issue(s)).", count)
+    end)
   end
 
   -- PotatoVoxel is optional. The manifest's optional dependency makes its
