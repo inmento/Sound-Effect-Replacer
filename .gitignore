@@ -1,0 +1,13 @@
+# User-supplied replacement audio belongs in assets/ locally, not in the repository.
+*.mp3
+*.ogg
+*.wav
+*.flac
+
+# Keep empty user-facing asset folders tracked.
+!assets/**/.gitkeep
+
+# Local release/build artifacts.
+dist/
+*.zip
+*.luac
