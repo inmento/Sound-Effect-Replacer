@@ -111,6 +111,14 @@ Sound effects load as static audio, so short files are recommended. The mod warn
 
 Every folder is optional. Empty folders leave the native game audio unchanged.
 
+## Included PotatoVoxel Detection Sound
+
+Version 0.3.2 includes `assets/Supplied Sounds/potato_voxel_detected.wav`, an **original** 110 ms retro-style confirmation sound. It is a bundled integration asset, not a player replacement folder and not a replacement for any native game sound.
+
+When [PotatoVoxel](https://github.com/ShaneMcGovernIE/potato_voxel) is installed and enabled, Sound Effect Replacer detects its manifest ID (`potato_voxel`) during boot and plays this one short confirmation sound once after the game services are ready. When PotatoVoxel is absent, disabled, or fails to load, it stays completely quiet. PotatoVoxel remains optional; Sound Effect Replacer does not require it.
+
+The exact deterministic synthesis source is included at [`tools/generate_potato_voxel_detected.py`](tools/generate_potato_voxel_detected.py). Running that script regenerates the bundled WAV at the same path. The sound is 44,100 Hz, mono, 16-bit PCM, and 110 ms long.
+
 ## Desktop and Mobile Support
 
 **Desktop is the supported way to customize this mod.** On Windows, Linux, and macOS, place your replacement files in the matching folders under Sound Effect Replacer’s installed `assets/` directory, then fully restart Gen1Recomp.

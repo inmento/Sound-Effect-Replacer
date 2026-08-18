@@ -26,7 +26,7 @@ package.preload["src.core.Sound"] = function()
 end
 package.preload["src.core.Game"] = function() return gameFacade end
 
-local function run(game, files)
+local function run(game, files, foundMods)
   activeGame = game
   played = {}
   nativePikaCalls = {}
@@ -57,6 +57,9 @@ local function run(game, files)
     events = {
       on = function(_, name, callback) events[name] = callback end,
     },
+    find = function(id)
+      return foundMods and foundMods[id] or nil
+    end,
     hooks = {
       wrap = function(_, name, callback, priority)
         hooks[name] = { callback = callback, priority = priority }
@@ -94,7 +97,9 @@ local function run(game, files)
 
   function mod:read(relative) return files[relative] end
 
-  local entry, err = loadfile("/home/ubuntu/sound_effect_replacement/main.lua")
+  local mainPath = os.getenv("SOUND_EFFECT_REPLACER_MAIN")
+    or "/home/ubuntu/sound_effect_replacement/main.lua"
+  local entry, err = loadfile(mainPath)
   assert(entry, err)
   local init = entry()
   assert(type(init) == "function")
@@ -221,4 +226,25 @@ local nativeClip = latestSound.playPikaCry({ audio = { pikaCries = 42 } }, 12)
 assert(nativeClip and nativeClip.native == 12)
 assert(#nativePikaCalls == 1 and nativePikaCalls[1].index == 12)
 
-print("sound effect replacer 0.3.1 harness: passed")
+-- PotatoVoxel is optional: no detection means no supplied startup SFX is
+-- registered or played, preserving ordinary Sound Effect Replacer behavior.
+local _, absentRegistered, _, _, absentEvents = run("red", {})
+assert(absentRegistered.sfx.SFX_SOUND_EFFECT_REPLACER_POTATO_VOXEL_DETECTED == nil)
+assert(absentEvents["game.ready"] == nil)
+
+-- A loaded PotatoVoxel handle enables the supplied original WAV. The event
+-- handler must use the live game data and play exactly once even if game.ready
+-- is re-emitted by a development hot reload.
+local _, potatoRegistered, _, _, potatoEvents = run("gold", {}, {
+  potato_voxel = { id = "potato_voxel", version = "1.7.11", exports = {} },
+})
+assert(potatoRegistered.sfx.SFX_SOUND_EFFECT_REPLACER_POTATO_VOXEL_DETECTED
+  == "mods/sound_effect_replacer/assets/Supplied Sounds/potato_voxel_detected.wav")
+assert(potatoEvents["game.ready"], "PotatoVoxel detection must subscribe to game.ready")
+local startupGame = { data = { audio = { sfx = {} } } }
+potatoEvents["game.ready"]({ game = startupGame })
+potatoEvents["game.ready"]({ game = startupGame })
+assert(#played == 1 and played[1].data == startupGame.data
+  and played[1].id == "SFX_SOUND_EFFECT_REPLACER_POTATO_VOXEL_DETECTED")
+
+print("sound effect replacer 0.3.2 harness: passed")
