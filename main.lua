@@ -1148,8 +1148,8 @@ local Catalog = {
 }
 
   local playing = GameVersion.get()
-  local isGold = playing == "gold"
-  local generationName = isGold and "Gold" or "Red/Blue/Yellow"
+  local isGen2 = GameVersion.generation(playing) == 2
+  local generationName = isGen2 and "Gold/Silver" or "Red/Blue/Yellow"
 
   -- These are the audio extensions decoded by the LÖVE 11.5 runtime bundled
   -- with Gen1Recomp 0.2.3: MP3, WAV, FLAC, Ogg Vorbis aliases, and libmodplug
@@ -1332,13 +1332,13 @@ local Catalog = {
     return out
   end
 
-  local activeNamedSfx = asSet(isGold and Catalog.gold_sfx or Catalog.gen1_sfx)
-  local activeMoves = asSet(isGold and Catalog.all_moves or Catalog.gen1_moves)
-  local activeSpecies = asSet(isGold and Catalog.gold_species or Catalog.gen1_species)
+  local activeNamedSfx = asSet(isGen2 and Catalog.gold_sfx or Catalog.gen1_sfx)
+  local activeMoves = asSet(isGen2 and Catalog.all_moves or Catalog.gen1_moves)
+  local activeSpecies = asSet(isGen2 and Catalog.gold_species or Catalog.gen1_species)
 
   local generalFolders, generalCues = 0, 0
   for _, replacement in ipairs(GENERAL_REPLACEMENTS) do
-    local targets = isGold and replacement.gold or replacement.gen1
+    local targets = isGen2 and replacement.gold or replacement.gen1
     if #targets > 0 then
       local relativeFile, filename = firstCompatibleFile(GENERAL_ROOT .. "/" .. replacement.folder)
       if relativeFile then
@@ -1357,12 +1357,12 @@ local Catalog = {
 
   -- Gold's healing machine is a one-shot music jingle rather than an SFX. The
   -- same friendly folder keeps the player workflow generation-neutral.
-  if isGold then
+  if isGen2 then
     local relativeFile, filename = firstCompatibleFile(GENERAL_ROOT .. "/Healing Machine")
     if relativeFile then
       mod.content.music:override("Music_HealPokemon", { file = mod.assets:path(relativeFile) })
       generalFolders, generalCues = generalFolders + 1, generalCues + 1
-      mod.log:info("General Sound Effects: Healing Machine uses %s in Gold.", filename)
+      mod.log:info("General Sound Effects: Healing Machine uses %s in Gold/Silver.", filename)
     end
   end
 
@@ -1371,7 +1371,7 @@ local Catalog = {
   -- fallback for a player who wants an effect beyond the friendly General map.
   -- Exact folders load after General Sound Effects and therefore take priority.
   local exactFolders, exactCues = 0, 0
-  for _, id in ipairs(isGold and Catalog.gold_sfx or Catalog.gen1_sfx) do
+  for _, id in ipairs(isGen2 and Catalog.gold_sfx or Catalog.gen1_sfx) do
     local relativeFile, filename = firstCompatibleFile(SPECIFIC_ROOT .. "/Named Effects/" .. id)
     if relativeFile then
       mod.content.sfx:override(id, { file = mod.assets:path(relativeFile) })
@@ -1444,11 +1444,17 @@ local Catalog = {
       mod.log:info("Yellow Pikachu voice clip %s uses %s.", clip, filename)
     end
   end
-  if next(pikaSounds) and type(Sound.playPikaCry) == "function" then
+  -- The loader removes registered owners during hot reload, but this is a
+  -- direct module-table assignment. Keep one native wrapper for the process
+  -- lifetime and replace only its clip lookup table on later initializations.
+  Sound._sfxReplacerPikaSounds = pikaSounds
+  if next(pikaSounds) and type(Sound.playPikaCry) == "function"
+    and not Sound._sfxReplacerPikaWrapped then
+    Sound._sfxReplacerPikaWrapped = true
     local nativePlayPikaCry = Sound.playPikaCry
     Sound.playPikaCry = function(data, index)
       index = math.max(1, math.min(42, tonumber(index) or 1))
-      local soundId = pikaSounds[index]
+      local soundId = (Sound._sfxReplacerPikaSounds or {})[index]
       if soundId then return Sound.play(data, soundId) end
       return nativePlayPikaCry(data, index)
     end
@@ -1464,7 +1470,7 @@ local Catalog = {
   if progressFile then
     local customSong = "Music_SOUND_EFFECT_REPLACER_EVOLUTION_PROGRESS"
     mod.content.music:register(customSong, { file = mod.assets:path(progressFile) })
-    if isGold then
+    if isGen2 then
       mod.content.music:override("Music_Evolution", { file = mod.assets:path(progressFile) })
     else
       mod.hooks:wrap("evolution.check", function(next, game, mon, evo, trigger)
@@ -1486,7 +1492,7 @@ local Catalog = {
   -- native completion SFX.
   local completeFile, completeName = firstCompatibleFile(evolutionRoot .. "/Evolution Complete")
   if completeFile then
-    if isGold then
+    if isGen2 then
       mod.content.sfx:override("Sfx_Evolved", { file = mod.assets:path(completeFile) })
     else
       local completionSfx = "SFX_SOUND_EFFECT_REPLACER_EVOLUTION_COMPLETE"

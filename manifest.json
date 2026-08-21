@@ -1,7 +1,7 @@
 {
   "id": "sound_effect_replacer",
   "name": "Sound Effect Replacer",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "api": 2,
   "entry": "main.lua",
   "profile": "content",
@@ -16,5 +16,5 @@
   "incompatible": [],
   "games": ["gen1", "gen2"],
   "experimental": false,
-  "description": "Replaces complete named sound effects, move sounds, evolution audio, and optional cries in Red, Blue, Yellow, and Gold."
+  "description": "Replaces complete named sound effects, move sounds, evolution audio, and optional cries in Red, Blue, Yellow, Gold, and Silver."
 }

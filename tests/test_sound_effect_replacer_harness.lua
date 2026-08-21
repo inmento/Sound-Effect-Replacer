@@ -10,7 +10,13 @@ local shownTextBoxes = {}
 local gameFacade = { data = nil, stack = {} }
 
 package.preload["src.core.GameVersion"] = function()
-  return { get = function() return activeGame end }
+  return {
+    get = function() return activeGame end,
+    generation = function(id)
+      assert(id == activeGame, "Sound Effect Replacer must classify the active game")
+      return (id == "gold" or id == "silver") and 2 or 1
+    end,
+  }
 end
 package.preload["src.core.Sound"] = function()
   local sound = {
@@ -43,7 +49,7 @@ package.preload["src.audio.ChipAsm"] = function()
   }
 end
 
-local function run(game, files, foundMods)
+local function run(game, files, foundMods, reuseModules)
   activeGame = game
   played = {}
   nativePikaCalls = {}
@@ -53,11 +59,13 @@ local function run(game, files, foundMods)
   gameFacade.stack = {
     push = function(_, box) shownTextBoxes[#shownTextBoxes + 1] = box end,
   }
-  package.loaded["src.core.GameVersion"] = nil
-  package.loaded["src.core.Sound"] = nil
-  package.loaded["src.core.Game"] = nil
-  package.loaded["src.render.TextBox"] = nil
-  package.loaded["src.audio.ChipAsm"] = nil
+  if not reuseModules then
+    package.loaded["src.core.GameVersion"] = nil
+    package.loaded["src.core.Sound"] = nil
+    package.loaded["src.core.Game"] = nil
+    package.loaded["src.render.TextBox"] = nil
+    package.loaded["src.audio.ChipAsm"] = nil
+  end
 
   local overrides, registered = { sfx = {}, cries = {}, music = {} }, { sfx = {}, music = {} }
   local warnings, infos, events, hooks = {}, {}, {}, {}
@@ -257,6 +265,30 @@ goldEvents["battle.move_used"]({
 })
 assert(#played == 1 and played[1].id == "SFX_SOUND_EFFECT_REPLACER_MOVE_FUTURE_SIGHT")
 
+local silver, silverRegistered, _, _, silverEvents, silverHooks = run("silver", {
+  ["assets/General Sound Effects/Battle Damage/general.ogg"] = vorbis,
+  ["assets/General Sound Effects/Healing Machine/heal.ogg"] = vorbis,
+  ["assets/Specific Sound Effects/Named Effects/Sfx_Damage/exact.ogg"] = vorbis,
+  ["assets/Specific Sound Effects/Move Sounds/THUNDERBOLT/thunderbolt.ogg"] = vorbis,
+  ["assets/Specific Sound Effects/Pokemon Cries/CHIKORITA/chikorita.ogg"] = vorbis,
+  ["assets/Specific Sound Effects/Evolution/Evolution In Progress/evolving.ogg"] = vorbis,
+  ["assets/Specific Sound Effects/Evolution/Evolution Complete/complete.ogg"] = vorbis,
+})
+assert(silver.sfx.Sfx_Damage == "mods/sound_effect_replacer/assets/Specific Sound Effects/Named Effects/Sfx_Damage/exact.ogg"
+  and silver.music.Music_HealPokemon == "mods/sound_effect_replacer/assets/General Sound Effects/Healing Machine/heal.ogg",
+  "Silver must select the Gen 2 named-effect and healing-jingle mappings")
+assert(silverRegistered.sfx.SFX_SOUND_EFFECT_REPLACER_MOVE_THUNDERBOLT
+  == "mods/sound_effect_replacer/assets/Specific Sound Effects/Move Sounds/THUNDERBOLT/thunderbolt.ogg"
+  and silver.cries.CHIKORITA == "mods/sound_effect_replacer/assets/Specific Sound Effects/Pokemon Cries/CHIKORITA/chikorita.ogg",
+  "Silver must select the Gen 2 move-sound and cry mappings")
+assert(silver.music.Music_Evolution
+  == "mods/sound_effect_replacer/assets/Specific Sound Effects/Evolution/Evolution In Progress/evolving.ogg"
+  and silver.sfx.Sfx_Evolved
+  == "mods/sound_effect_replacer/assets/Specific Sound Effects/Evolution/Evolution Complete/complete.ogg",
+  "Silver must select the Gen 2 evolution mappings")
+assert(silverEvents["battle.move_used"] and silverHooks["evolution.check"] == nil,
+  "Silver must install the Gen 2 move hook and use Music_Evolution directly")
+
 local yellow, yellowRegistered = run("yellow", {
   ["assets/Specific Sound Effects/Yellow Pikachu Voice Clips/11/battle.ogg"] = vorbis,
 })
@@ -268,6 +300,25 @@ assert(#nativePikaCalls == 0, "Assigned Yellow clip must bypass the native PCM p
 local nativeClip = latestSound.playPikaCry({ audio = { pikaCries = 42 } }, 12)
 assert(nativeClip and nativeClip.native == 12)
 assert(#nativePikaCalls == 1 and nativePikaCalls[1].index == 12)
+
+-- Hot reload reruns an entry chunk after owner-managed hooks/events are
+-- removed, but direct Sound-table mutations survive. The same Sound module
+-- must retain exactly one wrapper instead of nesting native fallbacks.
+local pikaWrapper = latestSound.playPikaCry
+local yellowFiles = {
+  ["assets/Specific Sound Effects/Yellow Pikachu Voice Clips/11/battle.ogg"] = vorbis,
+}
+local _, yellowReloaded = run("yellow", yellowFiles, nil, true)
+assert(latestSound.playPikaCry == pikaWrapper and latestSound._sfxReplacerPikaWrapped == true,
+  "Pikachu wrapper must not be replaced or nested during same-module reinitialization")
+local reloadedCustom = latestSound.playPikaCry({ audio = { pikaCries = 42 } }, 11)
+assert(yellowReloaded.sfx.SFX_SOUND_EFFECT_REPLACER_PIKACHU_PCM_11
+  and reloadedCustom and reloadedCustom.custom == "SFX_SOUND_EFFECT_REPLACER_PIKACHU_PCM_11",
+  "reinitialized Pikachu wrapper must use the current replacement clip table")
+local reloadedNative = latestSound.playPikaCry({ audio = { pikaCries = 42 } }, 12)
+assert(reloadedNative and reloadedNative.native == 12
+  and #nativePikaCalls == 1 and nativePikaCalls[1].index == 12,
+  "reinitialized Pikachu wrapper must call the native fallback exactly once")
 
 -- PotatoVoxel is optional: no detection means no startup SFX is registered
 -- or played, preserving ordinary Sound Effect Replacer behavior.
