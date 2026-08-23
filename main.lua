@@ -1,14 +1,13 @@
--- Sound Effect Replacer 0.3.3
+-- Sound Effect Replacer 0.4.0
 --
--- A content mod for Red, Blue, Yellow, and Gold. The player-facing layout
--- deliberately follows the simple Easy Custom Music model:
+-- A content mod for Red, Blue, Yellow, Gold, and Silver. Its player-facing
+-- layout follows Easy Custom Music v2’s generation split:
 --
---   assets/General Sound Effects/<friendly cue>/
---   assets/Specific Sound Effects/<exact cue family>/
+--   assets/Gen 1/{General,Specific} Sound Effects/<target>/
+--   assets/Gen 2/{General,Specific} Sound Effects/<target>/
 --
--- The same Specific folder is selected automatically for the loaded game.
--- There are no generation-labelled player folders: THUNDERBOLT, for example,
--- is one folder and works in R/B/Y or Gold when that move exists there.
+-- The active game reads its matching tree. Every target folder can contain a
+-- validated playlist; selection advances once each time the target is played.
 
 return function(mod)
   local GameVersion = require("src.core.GameVersion")
@@ -1193,8 +1192,18 @@ local Catalog = {
     ogv = true,
   }
   local MAX_RECOMMENDED_SFX_BYTES = 5 * 1024 * 1024
-  local GENERAL_ROOT = "assets/General Sound Effects"
-  local SPECIFIC_ROOT = "assets/Specific Sound Effects"
+  -- Match Easy Custom Music v2’s generation-specific asset contract. The
+  -- active game receives only its matching tree, so a player can supply
+  -- distinct Gen 1 and Gen 2 replacements for the same friendly cue.
+  local GENERATION_ROOT = isGen2 and "assets/Gen 2" or "assets/Gen 1"
+  local GENERAL_ROOT = GENERATION_ROOT .. "/General Sound Effects"
+  local SPECIFIC_ROOT = GENERATION_ROOT .. "/Specific Sound Effects"
+  -- Pre-0.4 Sound Effect Replacer packages stored these at unlabelled roots.
+  -- Keep a lower-priority one-release migration fallback so an update does not
+  -- abruptly silence a user’s existing setup; the new generation tree wins.
+  local LEGACY_GENERAL_ROOT = "assets/General Sound Effects"
+  local LEGACY_SPECIFIC_ROOT = "assets/Specific Sound Effects"
+  local migrationWarnings = {}
   local diagnostics, diagnosticSeen = {}, {}
 
   local function addDiagnostic(code, relative, detail)
@@ -1302,16 +1311,14 @@ local Catalog = {
     return true
   end
 
-  local function firstCompatibleFile(relativeDir)
+  local function compatibleFilesIn(relativeDir)
     -- The official validator deliberately provides a minimal mod object. A
     -- real game always exposes these asset methods; headless validation simply
     -- has no player files to scan.
-    if type(mod.info) ~= "function" or type(mod.list) ~= "function" then
-      return nil
-    end
+    if type(mod.info) ~= "function" or type(mod.list) ~= "function" then return {} end
     local directory = mod:info(relativeDir)
-    if not directory or directory.type ~= "directory" then return nil end
-    local items = mod:list(relativeDir) or {}
+    if not directory or directory.type ~= "directory" then return {} end
+    local out, items = {}, mod:list(relativeDir) or {}
     table.sort(items)
     for _, name in ipairs(items) do
       local relative = relativeDir .. "/" .. name
@@ -1320,10 +1327,24 @@ local Catalog = {
         if info.size and info.size > MAX_RECOMMENDED_SFX_BYTES then
           mod.log:warn("Large static sound in %s: %s is %.1f MiB. Short files are recommended.", relativeDir, name, info.size / (1024 * 1024))
         end
-        return relative, name
+        out[#out + 1] = { path = relative, name = name }
       end
     end
-    return nil
+    return out
+  end
+
+  local function playlistFiles(root, legacyRoot, suffix)
+    local preferred = compatibleFilesIn(root .. suffix)
+    if #preferred > 0 then return preferred end
+    local legacy = compatibleFilesIn(legacyRoot .. suffix)
+    if #legacy > 0 then
+      local key = legacyRoot .. suffix
+      if not migrationWarnings[key] then
+        migrationWarnings[key] = true
+        mod.log:warn("Legacy Sound Effect Replacer path %s is in use. Move its files to %s for the Gen 1/Gen 2 layout.", legacyRoot .. suffix, root .. suffix)
+      end
+    end
+    return legacy
   end
 
   local function asSet(values)
@@ -1336,182 +1357,276 @@ local Catalog = {
   local activeMoves = asSet(isGen2 and Catalog.all_moves or Catalog.gen1_moves)
   local activeSpecies = asSet(isGen2 and Catalog.gold_species or Catalog.gen1_species)
 
-  local generalFolders, generalCues = 0, 0
+  -- Audio registries accept one definition per ID, so each file receives a
+  -- private registered ID and a small router selects the next ID at playback.
+  -- The cursor is process-owned rather than save-owned: it has no gameplay
+  -- effect and intentionally resets when a mod reload replaces the playlist.
+  local playlistCursor = Sound._sfxReplacerPlaylistCursor or {}
+  Sound._sfxReplacerPlaylistCursor = playlistCursor
+  local registrationSerial = 0
+
+  local function nextPlaylist(ids, key)
+    if not ids or #ids == 0 then return nil end
+    local index = (playlistCursor[key] or 0) % #ids + 1
+    playlistCursor[key] = index
+    return ids[index]
+  end
+
+  local function registerSfxPlaylist(label, files)
+    local ids = {}
+    registrationSerial = registrationSerial + 1
+    for index, file in ipairs(files) do
+      local id = "SFX_SOUND_EFFECT_REPLACER_" .. label .. "_" .. registrationSerial .. "_" .. index
+      mod.content.sfx:register(id, { file = mod.assets:path(file.path) })
+      ids[#ids + 1] = id
+    end
+    return ids
+  end
+
+  local function registerCryPlaylist(label, files)
+    local ids = {}
+    registrationSerial = registrationSerial + 1
+    for index, file in ipairs(files) do
+      local id = "CRY_SOUND_EFFECT_REPLACER_" .. label .. "_" .. registrationSerial .. "_" .. index
+      mod.content.cries:register(id, { file = mod.assets:path(file.path) })
+      ids[#ids + 1] = id
+    end
+    return ids
+  end
+
+  local function registerMusicPlaylist(label, files)
+    local ids = {}
+    registrationSerial = registrationSerial + 1
+    for index, file in ipairs(files) do
+      local id = "Music_SOUND_EFFECT_REPLACER_" .. label .. "_" .. registrationSerial .. "_" .. index
+      mod.content.music:register(id, { file = mod.assets:path(file.path) })
+      ids[#ids + 1] = id
+    end
+    return ids
+  end
+
+  local sfxPlaylists, cryPlaylists, musicPlaylists = {}, {}, {}
+  local function token(value) return tostring(value):gsub("[^%w_]", "_") end
+  local generalFolders, generalCues, generalTracks = 0, 0, 0
   for _, replacement in ipairs(GENERAL_REPLACEMENTS) do
     local targets = isGen2 and replacement.gold or replacement.gen1
     if #targets > 0 then
-      local relativeFile, filename = firstCompatibleFile(GENERAL_ROOT .. "/" .. replacement.folder)
-      if relativeFile then
-        local file = mod.assets:path(relativeFile)
+      local files = playlistFiles(GENERAL_ROOT, LEGACY_GENERAL_ROOT, "/" .. replacement.folder)
+      if #files > 0 then
+        local playlist = registerSfxPlaylist("GENERAL_" .. token(replacement.folder), files)
         for _, id in ipairs(targets) do
           if activeNamedSfx[id] then
-            mod.content.sfx:override(id, { file = file })
+            sfxPlaylists[id] = playlist
             generalCues = generalCues + 1
           end
         end
-        generalFolders = generalFolders + 1
-        mod.log:info("General Sound Effects: %s uses %s in %s.", replacement.folder, filename, generationName)
+        generalFolders, generalTracks = generalFolders + 1, generalTracks + #files
+        mod.log:info("General Sound Effects: %s loaded %d file(s) for %s.", replacement.folder, #files, generationName)
       end
     end
   end
 
-  -- Gold's healing machine is a one-shot music jingle rather than an SFX. The
-  -- same friendly folder keeps the player workflow generation-neutral.
+  -- Gold/Silver’s healing machine is a one-shot music jingle rather than an
+  -- SFX. Route its playlist through the same public music-selection hook used
+  -- by Easy Custom Music, without altering unrelated music choices.
   if isGen2 then
-    local relativeFile, filename = firstCompatibleFile(GENERAL_ROOT .. "/Healing Machine")
-    if relativeFile then
-      mod.content.music:override("Music_HealPokemon", { file = mod.assets:path(relativeFile) })
-      generalFolders, generalCues = generalFolders + 1, generalCues + 1
-      mod.log:info("General Sound Effects: Healing Machine uses %s in Gold/Silver.", filename)
+    local files = playlistFiles(GENERAL_ROOT, LEGACY_GENERAL_ROOT, "/Healing Machine")
+    if #files > 0 then
+      musicPlaylists.Music_HealPokemon = registerMusicPlaylist("HEALING_MACHINE", files)
+      generalFolders, generalCues, generalTracks = generalFolders + 1, generalCues + 1, generalTracks + #files
+      mod.log:info("General Sound Effects: Healing Machine loaded %d file(s) in Gold/Silver.", #files)
     end
   end
 
   -- Every named effect extracted by the current engine has an exact folder.
-  -- These raw labels intentionally remain visible: they are the unambiguous
-  -- fallback for a player who wants an effect beyond the friendly General map.
-  -- Exact folders load after General Sound Effects and therefore take priority.
-  local exactFolders, exactCues = 0, 0
+  -- Exact folders are installed after General Sound Effects and therefore win.
+  local exactFolders, exactCues, exactTracks = 0, 0, 0
   for _, id in ipairs(isGen2 and Catalog.gold_sfx or Catalog.gen1_sfx) do
-    local relativeFile, filename = firstCompatibleFile(SPECIFIC_ROOT .. "/Named Effects/" .. id)
-    if relativeFile then
-      mod.content.sfx:override(id, { file = mod.assets:path(relativeFile) })
-      exactFolders, exactCues = exactFolders + 1, exactCues + 1
-      mod.log:info("Named Effect %s uses %s in %s.", id, filename, generationName)
+    local files = playlistFiles(SPECIFIC_ROOT, LEGACY_SPECIFIC_ROOT, "/Named Effects/" .. id)
+    if #files > 0 then
+      sfxPlaylists[id] = registerSfxPlaylist("EXACT_" .. token(id), files)
+      exactFolders, exactCues, exactTracks = exactFolders + 1, exactCues + 1, exactTracks + #files
+      mod.log:info("Named Effect %s loaded %d file(s) for %s.", id, #files, generationName)
     end
   end
 
-  -- One shared move folder per move ID. The loaded game selects the matching
-  -- catalog automatically: a Gold-only move folder is simply dormant on R/B/Y.
-  local moveSounds, moveFolders = {}, 0
-  local moveRoot = SPECIFIC_ROOT .. "/Move Sounds"
+  -- One generation-specific move folder per move ID. A playlist advances once
+  -- per battle.move_used event, including Metronome and Mirror Move results.
+  local moveSounds, moveFolders, moveTracks = {}, 0, 0
   for _, moveId in ipairs(Catalog.all_moves) do
     if activeMoves[moveId] then
-      local relativeFile, filename = firstCompatibleFile(moveRoot .. "/" .. moveId)
-      if relativeFile then
-        local sfxId = "SFX_SOUND_EFFECT_REPLACER_MOVE_" .. moveId
-        mod.content.sfx:register(sfxId, { file = mod.assets:path(relativeFile) })
-        moveSounds[moveId] = sfxId
-        moveFolders = moveFolders + 1
-        mod.log:info("Move Sound %s uses %s in %s.", moveId, filename, generationName)
+      local files = playlistFiles(SPECIFIC_ROOT, LEGACY_SPECIFIC_ROOT, "/Move Sounds/" .. moveId)
+      if #files > 0 then
+        moveSounds[moveId] = registerSfxPlaylist("MOVE_" .. token(moveId), files)
+        moveFolders, moveTracks = moveFolders + 1, moveTracks + #files
+        mod.log:info("Move Sound %s loaded %d file(s) for %s.", moveId, #files, generationName)
       end
     end
   end
 
   if next(moveSounds) then
-    -- BattleState emits this once per executed move, including calls made by
-    -- Metronome and Mirror Move. It is deliberately once per move use, not
-    -- once per individual hit of multi-hit moves.
     mod.events:on("battle.move_used", function(event)
       local battle = event and event.battle
       local move = event and event.move
-      local soundId = move and move.id and moveSounds[move.id]
-      if not battle or not soundId then return end
+      local playlist = move and move.id and moveSounds[move.id]
+      if not battle or not playlist then return end
       if type(battle.animationsOn) == "function" and not battle:animationsOn() then return end
-      Sound.play(battle.data, soundId)
+      Sound.play(battle.data, nextPlaylist(playlist, "move:" .. move.id))
     end)
   end
 
-  -- Each species has one optional folder. The same folder name works in both
-  -- generations for shared species; Gold-only species folders simply remain
-  -- dormant in R/B/Y.
-  local cryFolders, cryCues = 0, 0
-  local cryRoot = SPECIFIC_ROOT .. "/Pokemon Cries"
+  local cryFolders, cryCues, cryTracks = 0, 0, 0
   for _, species in ipairs(Catalog.gold_species) do
     if activeSpecies[species] then
-      local relativeFile, filename = firstCompatibleFile(cryRoot .. "/" .. species)
-      if relativeFile then
-        mod.content.cries:override(species, { file = mod.assets:path(relativeFile) })
-        cryFolders, cryCues = cryFolders + 1, cryCues + 1
-        mod.log:info("Pokemon Cry %s uses %s in %s.", species, filename, generationName)
+      local files = playlistFiles(SPECIFIC_ROOT, LEGACY_SPECIFIC_ROOT, "/Pokemon Cries/" .. species)
+      if #files > 0 then
+        cryPlaylists[species] = registerCryPlaylist("CRY_" .. token(species), files)
+        cryFolders, cryCues, cryTracks = cryFolders + 1, cryCues + 1, cryTracks + #files
+        mod.log:info("Pokemon Cry %s loaded %d file(s) for %s.", species, #files, generationName)
       end
     end
   end
 
-  -- Yellow's 42 Pikachu voice clips bypass the ordinary cry registry. The
-  -- engine has no public content registry for those PCM files, so this narrow
-  -- wrapper preserves the native function for every unassigned clip and routes
-  -- only selected numbered folders through registered replacement SFX.
-  local pikaSounds, pikaFolders = {}, 0
-  local pikaRoot = SPECIFIC_ROOT .. "/Yellow Pikachu Voice Clips"
+  -- Yellow’s PCM clips bypass the ordinary cry registry. Each numbered folder
+  -- can still contain a playlist, while untouched clips retain native behavior.
+  local pikaSounds, pikaFolders, pikaTracks = {}, 0, 0
   for index = 1, 42 do
     local clip = string.format("%02d", index)
-    local relativeFile, filename = firstCompatibleFile(pikaRoot .. "/" .. clip)
-    if relativeFile then
-      local sfxId = "SFX_SOUND_EFFECT_REPLACER_PIKACHU_PCM_" .. clip
-      mod.content.sfx:register(sfxId, { file = mod.assets:path(relativeFile) })
-      pikaSounds[index] = sfxId
-      pikaFolders = pikaFolders + 1
-      mod.log:info("Yellow Pikachu voice clip %s uses %s.", clip, filename)
-    end
-  end
-  -- The loader removes registered owners during hot reload, but this is a
-  -- direct module-table assignment. Keep one native wrapper for the process
-  -- lifetime and replace only its clip lookup table on later initializations.
-  Sound._sfxReplacerPikaSounds = pikaSounds
-  if next(pikaSounds) and type(Sound.playPikaCry) == "function"
-    and not Sound._sfxReplacerPikaWrapped then
-    Sound._sfxReplacerPikaWrapped = true
-    local nativePlayPikaCry = Sound.playPikaCry
-    Sound.playPikaCry = function(data, index)
-      index = math.max(1, math.min(42, tonumber(index) or 1))
-      local soundId = (Sound._sfxReplacerPikaSounds or {})[index]
-      if soundId then return Sound.play(data, soundId) end
-      return nativePlayPikaCry(data, index)
+    local files = playlistFiles(SPECIFIC_ROOT, LEGACY_SPECIFIC_ROOT, "/Yellow Pikachu Voice Clips/" .. clip)
+    if #files > 0 then
+      pikaSounds[index] = registerSfxPlaylist("PIKACHU_PCM_" .. clip, files)
+      pikaFolders, pikaTracks = pikaFolders + 1, pikaTracks + #files
+      mod.log:info("Yellow Pikachu voice clip %s loaded %d file(s).", clip, #files)
     end
   end
 
-  -- Evolution progress is a scene music cue, not a short SFX. Gold directly
-  -- plays Music_Evolution. Gen 1 resolves its evolution song through
-  -- Music.special(data, "evolution"), so the public evolution.check hook
-  -- retargets only an actual pending evolution to the registered custom song.
-  -- That avoids changing any unrelated map theme.
-  local evolutionRoot = SPECIFIC_ROOT .. "/Evolution"
-  local progressFile, progressName = firstCompatibleFile(evolutionRoot .. "/Evolution In Progress")
-  if progressFile then
-    local customSong = "Music_SOUND_EFFECT_REPLACER_EVOLUTION_PROGRESS"
-    mod.content.music:register(customSong, { file = mod.assets:path(progressFile) })
+  -- Evolution progress is a music cue. Gen 2 reaches the active music playlist
+  -- through music.select; Gen 1 selects a registered variant only for a real
+  -- pending evolution, avoiding any unrelated map theme.
+  local progressSounds, completeSounds
+  local progressFiles = playlistFiles(SPECIFIC_ROOT, LEGACY_SPECIFIC_ROOT, "/Evolution/Evolution In Progress")
+  if #progressFiles > 0 then
+    progressSounds = registerMusicPlaylist("EVOLUTION_PROGRESS", progressFiles)
     if isGen2 then
-      mod.content.music:override("Music_Evolution", { file = mod.assets:path(progressFile) })
+      musicPlaylists.Music_Evolution = progressSounds
     else
       mod.hooks:wrap("evolution.check", function(next, game, mon, evo, trigger)
         local matched = next(game, mon, evo, trigger)
         if matched and game and game.data and game.data.audio then
           game.data.audio.special = game.data.audio.special or {}
-          game.data.audio.special.evolution = customSong
+          game.data.audio.special.evolution = nextPlaylist(progressSounds, "music:evolution_progress")
         end
         return matched
       end, 0)
     end
-    mod.log:info("Evolution In Progress uses %s in %s.", progressName, generationName)
+    mod.log:info("Evolution In Progress loaded %d file(s) in %s.", #progressFiles, generationName)
   end
 
-  -- Gold has a native Sfx_Evolved cue. R/B/Y instead reveal the evolved mon
-  -- and immediately play its cry, so an optional completion file is added just
-  -- before that cry through pokemon.evolved. This gives both games a single,
-  -- friendly Evolution Complete folder without pretending Gen 1 had an absent
-  -- native completion SFX.
-  local completeFile, completeName = firstCompatibleFile(evolutionRoot .. "/Evolution Complete")
-  if completeFile then
+  local completeFiles = playlistFiles(SPECIFIC_ROOT, LEGACY_SPECIFIC_ROOT, "/Evolution/Evolution Complete")
+  if #completeFiles > 0 then
+    completeSounds = registerSfxPlaylist("EVOLUTION_COMPLETE", completeFiles)
     if isGen2 then
-      mod.content.sfx:override("Sfx_Evolved", { file = mod.assets:path(completeFile) })
+      sfxPlaylists.Sfx_Evolved = completeSounds
     else
-      local completionSfx = "SFX_SOUND_EFFECT_REPLACER_EVOLUTION_COMPLETE"
-      mod.content.sfx:register(completionSfx, { file = mod.assets:path(completeFile) })
       mod.events:on("pokemon.evolved", function(event)
         if not (event and event.mon) then return end
         local ok, Game = pcall(require, "src.core.Game")
         local data = ok and Game and Game.data or nil
-        if data then Sound.play(data, completionSfx) end
+        if data then Sound.play(data, nextPlaylist(completeSounds, "sfx:evolution_complete")) end
       end)
     end
-    mod.log:info("Evolution Complete uses %s in %s.", completeName, generationName)
+    mod.log:info("Evolution Complete loaded %d file(s) in %s.", #completeFiles, generationName)
+  end
+
+  -- `sfx` and `cries` deliberately have no built-in playlist record. Keep one
+  -- narrow engine-internals bridge that changes only IDs owned by this mod;
+  -- unassigned effects always call the native methods with their original ID.
+  Sound._sfxReplacerPlaylists = { sfx = sfxPlaylists, cries = cryPlaylists, pika = pikaSounds }
+  Sound._sfxReplacerSelect = function(kind, key)
+    local group = Sound._sfxReplacerPlaylists and Sound._sfxReplacerPlaylists[kind]
+    return nextPlaylist(group and group[key], kind .. ":" .. tostring(key))
+  end
+  Sound._sfxReplacerLast = Sound._sfxReplacerLast or { sfx = {} }
+
+  if not Sound._sfxReplacerPlaylistWrapped and type(Sound.play) == "function" then
+    Sound._sfxReplacerPlaylistWrapped = true
+    local nativePlay, nativeStereo, nativeMove = Sound.play, Sound.playStereo, Sound.playMove
+    local nativeCry, nativeStop, nativeIsPlaying = Sound.playCry, Sound.stop, Sound.isPlaying
+    local function resolve(data, name)
+      return type(Sound.resolve) == "function" and Sound.resolve(data, name) or name
+    end
+    local function routedSfx(data, name)
+      local original = resolve(data, name)
+      local selected = Sound._sfxReplacerSelect("sfx", original)
+      if selected then
+        Sound._sfxReplacerLast.sfx[original] = selected
+        return selected
+      end
+      return nil
+    end
+    Sound.play = function(data, name)
+      return nativePlay(data, routedSfx(data, name) or name)
+    end
+    if type(nativeStereo) == "function" then
+      Sound.playStereo = function(data, name)
+        return nativeStereo(data, routedSfx(data, name) or name)
+      end
+    end
+    if type(nativeMove) == "function" then
+      Sound.playMove = function(data, anim)
+        local name = anim and anim.sound
+        local selected = name and routedSfx(data, name)
+        if not selected then return nativeMove(data, anim) end
+        local replacement = {}
+        for key, value in pairs(anim) do replacement[key] = value end
+        replacement.sound = selected
+        return nativeMove(data, replacement)
+      end
+    end
+    if type(nativeCry) == "function" then
+      Sound.playCry = function(data, species, pikaClip)
+        local selected = Sound._sfxReplacerSelect("cries", species)
+        return nativeCry(data, selected or species, pikaClip)
+      end
+    end
+    if type(nativeStop) == "function" then
+      Sound.stop = function(name)
+        return nativeStop((Sound._sfxReplacerLast.sfx or {})[name] or name)
+      end
+    end
+    if type(nativeIsPlaying) == "function" then
+      Sound.isPlaying = function(name)
+        return nativeIsPlaying((Sound._sfxReplacerLast.sfx or {})[name] or name)
+      end
+    end
+  end
+
+  -- The loader removes registered owners during hot reload, but direct Sound
+  -- table changes survive. Keep one wrapper and replace only playlist state.
+  Sound._sfxReplacerPikaSounds = pikaSounds
+  if type(Sound.playPikaCry) == "function" and not Sound._sfxReplacerPikaWrapped then
+    Sound._sfxReplacerPikaWrapped = true
+    local nativePlayPikaCry = Sound.playPikaCry
+    Sound.playPikaCry = function(data, index)
+      index = math.max(1, math.min(42, tonumber(index) or 1))
+      local selected = Sound._sfxReplacerSelect("pika", index)
+      if selected then return Sound.play(data, selected) end
+      return nativePlayPikaCry(data, index)
+    end
+  end
+
+  if next(musicPlaylists) and mod.hooks and type(mod.hooks.wrap) == "function" then
+    mod.hooks:wrap("music.select", function(next, song, context)
+      local selected = next(song, context)
+      return nextPlaylist(musicPlaylists[selected], "music:" .. tostring(selected)) or selected
+    end)
   end
 
   if generalFolders + exactFolders + moveFolders + cryFolders == 0
-      and not progressFile and not completeFile then
-    mod.log:warn("No replacement audio found for %s. Add one compatible file under General Sound Effects or Specific Sound Effects, then restart.", generationName)
+      and not progressSounds and not completeSounds then
+    mod.log:warn("No replacement audio found for %s. Add files under %s/General Sound Effects or %s/Specific Sound Effects, then restart.", generationName, GENERATION_ROOT, GENERATION_ROOT)
   else
-    mod.log:info("Loaded %d general folders / %d cues, %d exact named effects, %d move sounds, %d cry replacements, and %d Yellow voice clips for %s.", generalFolders, generalCues, exactCues, moveFolders, cryCues, pikaFolders, generationName)
+    mod.log:info("Loaded %d general folders / %d cues / %d files, %d exact effects / %d files, %d move folders / %d files, %d cry folders / %d files, and %d Yellow voice folders / %d files for %s.", generalFolders, generalCues, generalTracks, exactCues, exactTracks, moveFolders, moveTracks, cryFolders, cryTracks, pikaFolders, pikaTracks, generationName)
   end
 
   -- A standard text box is intentionally deferred until the player has taken

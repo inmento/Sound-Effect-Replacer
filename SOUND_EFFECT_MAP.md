@@ -2,14 +2,16 @@
 
 This map is generated from the current local Gen1Recomp Red/Blue/Yellow ROM manifest and Gold audio table. It contains identifiers and user-facing folder names only; it contains no ROM audio data.
 
-The mod deliberately has only two player-facing top-level folders:
+The canonical layout follows the Easy Custom Music v2 generation split:
 
 ```text
-assets/General Sound Effects/
-assets/Specific Sound Effects/
+assets/Gen 1/General Sound Effects/
+assets/Gen 1/Specific Sound Effects/
+assets/Gen 2/General Sound Effects/
+assets/Gen 2/Specific Sound Effects/
 ```
 
-The active game selects the correct internal target automatically. A folder is harmless when its cue does not exist in the currently loaded game.
+Red, Blue, and Yellow read only the Gen 1 tree; Gold and Silver read only the Gen 2 tree. Each folder may contain multiple compatible files, which rotate in alphabetical order when the target is triggered. The old unlabelled roots remain a lower-priority migration fallback in v0.4.0 only.
 
 ## General Sound Effects
 
@@ -52,7 +54,7 @@ The active game selects the correct internal target automatically. A folder is h
 | `Poison` | Poison/status cue. |
 | `Pokedex Fanfare` | Pokédex page/rating fanfare. |
 
-Place one compatible audio file inside any chosen folder. General folders are friendly grouped shortcuts. A matching exact folder under `Specific Sound Effects/Named Effects/` loads afterward and therefore takes priority when both are populated.
+Place one or more compatible files inside any chosen folder under the active generation tree. General folders are friendly grouped shortcuts. A matching exact folder under `Specific Sound Effects/Named Effects/` loads afterward and therefore takes priority when both are populated.
 
 ## Specific Sound Effects
 
@@ -60,20 +62,20 @@ Place one compatible audio file inside any chosen folder. General folders are fr
 
 | Folder | What it changes | Red / Blue / Yellow | Gold |
 |---|---|---|---|
-| `Evolution/Evolution In Progress` | The music heard while the species flashes between forms. | Retargets the evolution scene only through the evolution check flow. | Replaces `Music_Evolution`. |
-| `Evolution/Evolution Complete` | The sound immediately before the new form’s cry. | Adds the chosen completion sound before the native new-species cry. | Replaces `Sfx_Evolved`. |
+| `Evolution/Evolution In Progress` | The music heard while the species flashes between forms. | Retargets the evolution scene only through the evolution check flow. | Routes only `Music_Evolution` through its active playlist. |
+| `Evolution/Evolution Complete` | The sound immediately before the new form’s cry. | Adds a selected completion cue before the native new-species cry. | Routes only `Sfx_Evolved` through its active playlist. |
 
 ### Move Sounds
 
-There is one folder for each of the **251** move IDs: `Move Sounds/<MOVE_ID>/`. Examples include `THUNDERBOLT`, `FLAMETHROWER`, `SURF`, `PSYCHIC_M`, and Gold-only `FUTURE_SIGHT`. The same folder name works in every generation where the move exists. The selected sound plays once when that move is used and currently adds to any native move sound.
+There is one folder for each supported move ID: `Move Sounds/<MOVE_ID>/`. Gen 1 exposes its active move set under `assets/Gen 1/`; Gen 2 exposes its full active move set under `assets/Gen 2/`. Examples include `THUNDERBOLT`, `FLAMETHROWER`, `SURF`, `PSYCHIC_M`, and Gen 2-only `FUTURE_SIGHT`. Each valid file participates in that folder’s rotation. The selected sound plays once when that move is used and currently adds to any native move sound.
 
 ### Pokémon Cries
 
-There is one folder for each of the **250** named species in the Gold catalog: `Pokemon Cries/<SPECIES>/`. Shared species folders also apply to Red/Blue/Yellow. Gold-only species folders are simply inactive outside Gold.
+There is one folder for each active-generation species: `Pokemon Cries/<SPECIES>/`. Shared species can have separate Gen 1 and Gen 2 replacements, while Gen 2-only species appear only under the Gen 2 scaffold.
 
 ### Yellow Pikachu Voice Clips
 
-Pokémon Yellow routes Pikachu through a separate 42-clip PCM voice system instead of the ordinary species-cry table. Folders `Yellow Pikachu Voice Clips/01/` through `Yellow Pikachu Voice Clips/42/` expose every numbered clip. They are inactive in Red, Blue, and Gold.
+Pokémon Yellow routes Pikachu through a separate 42-clip PCM voice system instead of the ordinary species-cry table. The Gen 1 folders `Yellow Pikachu Voice Clips/01/` through `Yellow Pikachu Voice Clips/42/` expose every numbered clip. They are inactive outside Yellow.
 
 ### Named Effects
 

@@ -1,163 +1,150 @@
 # Sound Effect Replacer
 
-**Sound Effect Replacer** lets players replace the current Gen1Recomp engine’s named sound effects in **Pokémon Red, Blue, Yellow, Gold, and Silver**. It now uses the same simple two-top-level-folder idea as Easy Custom Music:
+**Sound Effect Replacer** lets players replace named sound effects, move-use sounds, evolution audio, optional Pokémon cries, and Yellow Pikachu voice clips in **Pokémon Red, Blue, Yellow, Gold, and Silver**. Version **0.4.0** aligns its player-facing asset structure and multiple-file behavior with [Easy Custom Music v2.0.0](https://github.com/ty-mcdk/easy-custom-music/releases/tag/v2.0.0), while keeping its separate sound-effect-specific runtime routing and safety checks.
+
+## Version 0.4.0: required layout change
+
+The canonical replacement tree is now split by game generation. **Gen 1 and Gen 2 folders are separate on purpose.** This lets one cue use different audio in Red/Blue/Yellow and Gold/Silver without ambiguity.
 
 ```text
 assets/
-├── General Sound Effects/
-└── Specific Sound Effects/
+├── Gen 1/
+│   ├── General Sound Effects/
+│   └── Specific Sound Effects/
+└── Gen 2/
+    ├── General Sound Effects/
+    └── Specific Sound Effects/
 ```
 
-Place one compatible audio file in any selected folder, fully restart Gen1Recomp, and the mod routes it to the matching cue for the game currently loaded. There are **no player-facing Gen 1 or Gen 2 folder trees**. A shared folder such as `Move Sounds/THUNDERBOLT` works in every supported game where Thunderbolt exists; a Gen 2-only folder such as `Move Sounds/FUTURE_SIGHT` simply does nothing outside Gold or Silver.
+| Loaded game | Active replacement tree |
+|---|---|
+| Red, Blue, or Yellow | `assets/Gen 1/` |
+| Gold or Silver | `assets/Gen 2/` |
 
-> **For any Ogg-family file (`.ogg`, `.oga`, or `.ogv`), use Ogg Vorbis—not Ogg Opus.** The current Gen1Recomp runtime can play Vorbis but cannot play Opus. The mod detects and skips Opus files with a diagnostic warning.
+> **Migration notice.** Move existing files from the old unlabelled `assets/General Sound Effects/` and `assets/Specific Sound Effects/` paths into the matching `Gen 1` and/or `Gen 2` trees. Version 0.4.0 retains the old layout only as a lower-priority migration fallback. If both layouts contain a replacement for the same target, the generation-specific folder wins.
+
+## Multiple files per target
+
+A target folder can now contain **multiple compatible audio files**. Sound Effect Replacer registers each validated file and uses them in stable alphabetical rotation every time that target is triggered. This applies to friendly General categories, exact Named Effects, Move Sounds, Pokémon Cries, Yellow Pikachu voice clips, and both evolution folders.
+
+```text
+assets/Gen 1/Specific Sound Effects/Named Effects/Damage/
+├── 01-light-hit.ogg
+├── 02-heavy-hit.ogg
+└── 03-critical-hit.ogg
+```
+
+The next occurrences of that sound use `01`, then `02`, then `03`, and repeat. The same target in `assets/Gen 2/` has its own independent playlist.
 
 ## General Sound Effects
 
-`assets/General Sound Effects/` holds **36 friendly categories** for the cues most players will want first: damage, fainting, capture, item fanfares, menus, saving, PC actions, warps, running, field moves, healing, poison, and Pokédex fanfares.
+`assets/Gen 1/General Sound Effects/` and `assets/Gen 2/General Sound Effects/` contain **36 friendly categories** for the most common replacement targets: damage, fainting, capture, item fanfares, menus, saving, PC actions, warps, running, field moves, healing, poison, and Pokédex fanfares.
 
 ```text
-assets/General Sound Effects/Battle Damage/your-hit.ogg
-assets/General Sound Effects/Capture Success/your-capture.ogg
-assets/General Sound Effects/Menu Confirm/your-confirm.ogg
+assets/Gen 1/General Sound Effects/Battle Damage/01-hit.ogg
+assets/Gen 1/General Sound Effects/Menu Confirm/confirm.wav
+assets/Gen 2/General Sound Effects/Healing Machine/01-heal.ogg
 ```
 
-A General folder can map to a different native cue in Red/Blue/Yellow and Gold/Silver, but the mod chooses the appropriate active-game cue automatically. For example, `Healing Machine` replaces Gen 1’s named healing-machine SFX and the Gen 2 `Music_HealPokemon` jingle. These friendly folders are optional shortcuts, not a reduced feature set.
+A friendly category maps to the appropriate native cue for the active generation. For example, `Healing Machine` routes to the Gen 1 healing-machine effect in Gen 1, while its Gen 2 counterpart routes through the `Music_HealPokemon` cue without altering ordinary map music.
 
 ## Specific Sound Effects
 
-`assets/Specific Sound Effects/` provides direct access to the complete named audio catalog plus per-move, evolution, and cry choices.
+`assets/Gen 1/Specific Sound Effects/` and `assets/Gen 2/Specific Sound Effects/` provide direct access to exact cue families. Every folder is optional.
 
 | Subfolder | Coverage | Example |
 |---|---|---|
-| `Named Effects/` | Every current named engine SFX: **104** R/B/Y labels and **187** shared Gold/Silver labels. | `Named Effects/Damage/`, `Named Effects/Sfx_Damage/` |
-| `Move Sounds/` | One optional folder for each of the **251** move IDs. | `Move Sounds/THUNDERBOLT/`, `Move Sounds/FUTURE_SIGHT/` |
-| `Evolution/` | The evolution scene’s in-progress music and completion cue. | `Evolution/Evolution In Progress/` |
-| `Pokemon Cries/` | One folder for each of the **250** named species in the shared Gold/Silver catalog; shared names work in R/B/Y. | `Pokemon Cries/PIKACHU/` |
-| `Yellow Pikachu Voice Clips/` | All 42 special Yellow Pikachu PCM clips, outside the ordinary cry table. | `Yellow Pikachu Voice Clips/01/` |
+| `Named Effects/` | Complete named SFX catalog for the active generation. | `Named Effects/Damage/`, `Named Effects/Sfx_Damage/` |
+| `Move Sounds/` | One optional folder for each supported move ID. | `Move Sounds/THUNDERBOLT/`, `Move Sounds/FUTURE_SIGHT/` |
+| `Evolution/` | Evolution in-progress music and completion cue. | `Evolution/Evolution In Progress/` |
+| `Pokemon Cries/` | Per-species cry replacements in the active generation. | `Pokemon Cries/PIKACHU/`, `Pokemon Cries/CHIKORITA/` |
+| `Yellow Pikachu Voice Clips/` | Yellow’s 42 special PCM clip positions. Gen 1 only. | `Yellow Pikachu Voice Clips/11/` |
 
 ### Exact Named Effects
 
-The technical labels under `Named Effects/` are the exhaustive fallback. They include named Gen 1 battle entries such as `Battle_09`, UI/field labels such as `Ball_Toss` and `Healing_Machine`, and shared Gold/Silver labels such as `Sfx_BallWobble`, `Sfx_EscapeRope`, and `Sfx_TrainArrived`.
+Technical labels under `Named Effects/` are the exhaustive fallback for effects beyond the friendly General categories. Exact folders take precedence over a matching General folder.
 
 ```text
-assets/Specific Sound Effects/Named Effects/Ball_Toss/your-throw.ogg
-assets/Specific Sound Effects/Named Effects/Sfx_BallWobble/your-wobble.ogg
+assets/Gen 1/Specific Sound Effects/Named Effects/Ball_Toss/throw.ogg
+assets/Gen 2/Specific Sound Effects/Named Effects/Sfx_BallWobble/wobble.ogg
 ```
-
-If both a friendly General folder and its corresponding exact Named Effects folder contain audio, the **Named Effects** file loads later and wins. This gives a player a simple path for ordinary use and an exact path for complete control.
 
 ### Move Sounds
 
-Place a sound in `Move Sounds/<MOVE_ID>/` to add that sound once whenever the move is used. It respects the battle-animation setting and plays once per move use—not once per hit of a multi-hit move. In this testing release, a custom Move Sound **adds to** the native move sound when one exists; it does not suppress the native sound.
+Place audio under `Move Sounds/<MOVE_ID>/` to add a selected replacement once when that move is used. The behavior respects the battle-animation setting and runs once per move use, not once per individual hit of a multi-hit move. Custom move sounds intentionally **add to** native move sound behavior when one exists; they do not suppress native move audio.
 
 ```text
-assets/Specific Sound Effects/Move Sounds/THUNDERBOLT/lightning.ogg
-assets/Specific Sound Effects/Move Sounds/FLAMETHROWER/flame.ogg
-assets/Specific Sound Effects/Move Sounds/FUTURE_SIGHT/future.ogg
+assets/Gen 1/Specific Sound Effects/Move Sounds/THUNDERBOLT/lightning.ogg
+assets/Gen 2/Specific Sound Effects/Move Sounds/FUTURE_SIGHT/future.ogg
 ```
 
-### Yellow Pikachu Voice Clips
+### Evolution audio
 
-Pokémon Yellow’s voiced Pikachu uses a separate 42-clip PCM system instead of the ordinary `PIKACHU` cry. The numbered folders below expose those clips directly; they are inactive in Red, Blue, Gold, and Silver.
-
-```text
-assets/Specific Sound Effects/Yellow Pikachu Voice Clips/01/pikachu-title.ogg
-assets/Specific Sound Effects/Yellow Pikachu Voice Clips/11/pikachu-battle.ogg
-```
-
-### Evolution Sounds
-
-Evolution has two separately editable moments:
-
-| Folder | What it changes |
+| Folder | Behavior |
 |---|---|
-| `Evolution/Evolution In Progress/` | The music playing while the old and new forms flash between one another. In R/B/Y, the mod retargets only an actual pending evolution; it does not change a map theme. In Gold and Silver, it replaces `Music_Evolution`. |
-| `Evolution/Evolution Complete/` | The completion sound immediately before the evolved form’s cry. In Gold and Silver, it replaces `Sfx_Evolved`. In R/B/Y, it adds the supplied completion sound before the native new-species cry, because the original game has no separate named evolution-complete SFX. |
+| `Evolution/Evolution In Progress/` | Rotates the evolution scene music. In Gen 1, only an actual pending evolution is retargeted; map music remains unchanged. In Gen 2, selection is routed only when `Music_Evolution` is chosen. |
+| `Evolution/Evolution Complete/` | Rotates the completion sound immediately before the evolved form’s cry. In Gen 2, it routes only the native `Sfx_Evolved` cue. In Gen 1, it plays before the native new-species cry because Gen 1 has no separate named completion SFX. |
 
 ```text
-assets/Specific Sound Effects/Evolution/Evolution In Progress/evolving.ogg
-assets/Specific Sound Effects/Evolution/Evolution Complete/complete.ogg
+assets/Gen 1/Specific Sound Effects/Evolution/Evolution In Progress/evolving.ogg
+assets/Gen 2/Specific Sound Effects/Evolution/Evolution Complete/complete.ogg
 ```
 
-### Pokémon Cries
+### Pokémon cries and Yellow voice clips
 
-A file in `Pokemon Cries/<SPECIES>/` replaces that species’ cry wherever the current game plays it, including battle send-outs, Pokédex viewing, party/box viewing, and evolution reveal.
+A file under `Pokemon Cries/<SPECIES>/` is used wherever the active game plays that species’ ordinary cry, including battle send-outs, Pokédex viewing, party/box viewing, and evolution reveal.
 
 ```text
-assets/Specific Sound Effects/Pokemon Cries/PIKACHU/pikachu.ogg
-assets/Specific Sound Effects/Pokemon Cries/CHIKORITA/chikorita.ogg
+assets/Gen 1/Specific Sound Effects/Pokemon Cries/PIKACHU/pikachu.ogg
+assets/Gen 2/Specific Sound Effects/Pokemon Cries/CHIKORITA/chikorita.ogg
 ```
 
-## Complete Coverage Map
+Yellow’s voiced Pikachu uses a separate PCM system. Its 42 numbered folders are only active in Yellow and retain native fallback playback when unassigned.
 
-See **[SOUND_EFFECT_MAP.md](SOUND_EFFECT_MAP.md)** for the full generated catalog and every exact `Named Effects` folder. The map also lists all General folders, every numbered Yellow Pikachu voice clip, and both evolution folders. It is generated from the current Gen1Recomp Red/Blue/Yellow ROM manifest and shared Gold/Silver audio table; it contains only identifiers, not ROM-derived audio.
+```text
+assets/Gen 1/Specific Sound Effects/Yellow Pikachu Voice Clips/01/title.ogg
+assets/Gen 1/Specific Sound Effects/Yellow Pikachu Voice Clips/11/battle.ogg
+```
 
-## File Rules
+## Complete coverage map
 
-The same audio file may be copied to as many folders as desired. Each individual folder should contain **one usable replacement file**. If a folder contains several supported files, the mod uses the first filename alphabetically.
+See **[SOUND_EFFECT_MAP.md](SOUND_EFFECT_MAP.md)** for the full catalog of General categories, exact Named Effects, supported Move Sound folders, numbered Yellow clips, and evolution targets. It contains identifiers only and no game audio.
 
-Sound Effect Replacer accepts every audio extension decoded by the LÖVE 11.5 runtime bundled with Gen1Recomp 0.2.3:
+## Audio rules and diagnostics
 
-| Format family | Accepted extensions |
-|---|---|
-| Ogg Vorbis | `.ogg`, `.oga`, `.ogv` |
-| Ordinary audio | `.wav`, `.mp3`, `.flac` |
-| Tracker and module audio | `.699`, `.abc`, `.amf`, `.ams`, `.dbm`, `.dmf`, `.dsm`, `.far`, `.it`, `.j2b`, `.mdl`, `.med`, `.mid`, `.mod`, `.mt2`, `.mtm`, `.okt`, `.pat`, `.psm`, `.s3m`, `.stm`, `.ult`, `.umx`, `.xm` |
+Sound Effect Replacer accepts every audio extension decoded by the bundled LÖVE 11.5 runtime: Ogg Vorbis (`.ogg`, `.oga`, `.ogv`), `.wav`, `.mp3`, `.flac`, and supported tracker/module formats. Short files are recommended; the mod warns for a replacement larger than 5 MiB.
 
-> **Ogg Opus is not supported.** `.ogg`, `.oga`, and `.ogv` files must contain Vorbis audio; the mod rejects an Opus stream before it can fail silently.
+> **Ogg Opus is not supported.** An `.ogg`, `.oga`, or `.ogv` file must contain Ogg Vorbis. The mod detects and skips an Opus stream before it can fail silently.
 
-Sound effects load as static audio, so short files are recommended. The mod warns when a replacement is larger than 5 MiB.
+At startup, the mod conservatively scans visible replacement files. It skips only clear setup problems so the native cue remains available.
 
-### Startup audio diagnostics
-
-On startup, the mod performs a **conservative** check of visible files in configured replacement folders. It skips only files with an unambiguous setup problem, leaving the native cue unchanged instead of registering a replacement that is already known to be wrong.
-
-| Code | Meaning | What to do |
+| Code | Meaning | Resolution |
 |---|---|---|
-| `SFXR-A01` | Unsupported filename extension | Convert the file to one of the listed supported formats. |
-| `SFXR-A02` | Ogg Opus stream | Re-encode the file as **Ogg Vorbis**. |
-| `SFXR-A03` | Clear `.ogg`, `.wav`, or `.flac` container/header mismatch | Export the file again in the format named by its extension. |
-| `SFXR-A04` | The diagnostic text box itself could not be queued | Read the mod log for the original file warning. |
+| `SFXR-A01` | Unsupported filename extension | Convert to a supported format. |
+| `SFXR-A02` | Ogg Opus stream | Re-encode as Ogg Vorbis. |
+| `SFXR-A03` | Clear `.ogg`, `.wav`, or `.flac` container/header mismatch | Export again in the format matching the extension. |
+| `SFXR-A04` | The advisory diagnostic text box could not be queued | Read the mod log for the original warning. |
 
-If the scan finds one or more of those problems, Sound Effect Replacer shows one normal Gen 1-style text box **after the player’s first overworld step**. The box tells the player to check the mod log; the log contains the specific code, replacement path, and reason. The message appears once per game launch and does not modify saves, encounters, battle state, or original sound definitions.
+If the scan finds an issue, one standard text box appears after the player’s first overworld step and directs the player to the log. The warning does not alter saves, encounters, battle state, or unassigned native audio.
 
-This check intentionally does not claim to validate every codec. A file can have a plausible extension and container header but still fail when Gen1Recomp’s decoder first plays it; that later decoder error remains available under **MOD ERRORS** and in the log.
+## Included PotatoVoxel detection sound
 
-Every folder is optional. Empty folders or startup-rejected files leave the native game audio unchanged.
+The optional [PotatoVoxel](https://github.com/ShaneMcGovernIE/potato_voxel) integration remains unchanged. If that mod is installed and enabled, Sound Effect Replacer detects its manifest ID and plays one short original confirmation cue assembled through Gen1Recomp’s supported `src.audio.ChipAsm` API. It packages no WAV and does not replace a native game sound.
 
-## Included PotatoVoxel Detection Sound
+## Desktop and mobile setup
 
-Version 0.3.2 includes an **original Lua-authored chip confirmation sound** for the optional [PotatoVoxel](https://github.com/ShaneMcGovernIE/potato_voxel) integration. The cue is assembled at runtime through Gen1Recomp’s supported `src.audio.ChipAsm` API; it does not include a WAV or any other external audio asset, and it does not replace a native game sound.
+**Desktop is the supported customization route.** Place compatible audio files in the intended folder under the installed mod’s `assets/` directory, then fully restart Gen1Recomp.
 
-When PotatoVoxel is installed and enabled, Sound Effect Replacer detects its manifest ID (`potato_voxel`) during boot and plays the short, two-part upward confirmation cue once after the game services are ready. When PotatoVoxel is absent, disabled, or fails to load, it stays completely quiet. PotatoVoxel remains optional; Sound Effect Replacer does not require it.
+Sound Effect Replacer deliberately does **not** provide an arbitrary-audio importer. Gen1Recomp’s protected user-file import flow is for specifically declared, hash-verified files; it cannot safely accept an arbitrary custom track. The mod does not bypass that protection.
 
-The cue uses a square-wave channel with fast decay, moving from approximately 728 Hz to 904 Hz across seven chip frames (about 117 ms). Its complete original definition is contained in `main.lua`, so there is no separate asset to copy, extract, or reproduce. The optional Yellow voice-clip wrapper is also safe if a development hot reload reinitializes the mod: custom clips remain current and native fallback playback is never nested.
+On Android, standard file-manager access to a mod directory may be restricted. A desktop computer is the simplest supported setup method. Android USB debugging/ADB can copy files into the app’s external files area when appropriate, while rooted devices can access folders directly. In all cases, finish by fully restarting Gen1Recomp.
 
-## Desktop and Mobile Support
+## Recommended test sequence
 
-**Desktop is the supported way to customize this mod.** On Windows, Linux, and macOS, place your replacement files in the matching folders under Sound Effect Replacer’s installed `assets/` directory, then fully restart Gen1Recomp.
-
-Sound Effect Replacer does **not** include an in-game arbitrary-audio importer. Gen1Recomp’s protected user-file import flow is designed for specifically declared, hash-verified files. That security model is appropriate for known files such as supported ROMs or backups, but it cannot safely accept any arbitrary custom audio track a player selects. This mod intentionally does not bypass that protection.
-
-Android users can install and enable Sound Effect Replacer, but customizing its audio requires access to the installed mod folder. Ordinary file-manager access is often blocked on standard devices. **Desktop remains the simplest supported setup method.** With a PC, Android USB debugging/ADB can also copy files into Gen1Recomp’s external app-files directory without root; a rooted device can use direct folder access. In every case, place one supported audio file in the desired existing target folder and fully restart Gen1Recomp. A secure built-in custom-audio import feature would require future engine support.
-
-## Testing Focus
-
-This is a testing build. Please first test one friendly General folder, one exact Named Effects folder, one Move Sounds folder, and both evolution folders. Useful controls are:
-
-```text
-General Sound Effects/Battle Damage/
-Specific Sound Effects/Named Effects/Damage/
-Specific Sound Effects/Move Sounds/THUNDERBOLT/
-Specific Sound Effects/Evolution/Evolution In Progress/
-Specific Sound Effects/Evolution/Evolution Complete/
-```
-
-When reporting a problem, include the game, exact folder, filename/codec, what action was performed, any `SFXR-A##` code, and any **MOD ERRORS** text.
+Test one folder from each active-generation category: a General effect, a Named Effect, a two-file playlist, a Move Sound, an Evolution folder, and a Pokémon Cry. For Yellow, also test one numbered Pikachu voice clip. When reporting a problem, include the game, exact folder, filename/codec, player action, any `SFXR-A##` code, and the relevant **MOD ERRORS** text.
 
 ## Credits
 
-The simple drop-in asset-folder workflow was inspired by [Easy Custom Music](https://github.com/ty-mcdk/easy-custom-music) by **ty-mcdk**, who explicitly permitted using its code as a base. Sound Effect Replacer is an independent implementation for the sound-effect, cry, move-event, and evolution audio surfaces.
+The drop-in asset-folder workflow and the v0.4.0 generation/multiple-file update are informed by [Easy Custom Music](https://github.com/ty-mcdk/easy-custom-music) by **ty-mcdk**. Sound Effect Replacer remains an independent implementation for sound-effect, cry, move-event, Yellow voice-clip, and evolution surfaces.
 
 This project is **AI assisted**, not AI created.

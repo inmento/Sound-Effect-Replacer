@@ -24,6 +24,10 @@ package.preload["src.core.Sound"] = function()
       played[#played + 1] = { data = data, id = id }
       return { custom = id }
     end,
+    playCry = function(data, species)
+      played[#played + 1] = { data = data, id = species, cry = true }
+      return { custom = species }
+    end,
     playPikaCry = function(data, index)
       nativePikaCalls[#nativePikaCalls + 1] = { data = data, index = index }
       return { native = index }
@@ -77,6 +81,7 @@ local function run(game, files, foundMods, reuseModules)
       },
       cries = {
         override = function(_, id, def) overrides.cries[id] = def.file end,
+        register = function(_, id, def) registered.cries = registered.cries or {}; registered.cries[id] = def.file or def end,
       },
       music = {
         override = function(_, id, def) overrides.music[id] = def.file end,
@@ -143,6 +148,13 @@ end
 local vorbis = "OggS\0\2\1vorbis"
 local opus = "OggS\0\2OpusHead"
 
+local function registeredIdFor(records, path)
+  for id, value in pairs(records or {}) do
+    if value == path then return id end
+  end
+  return nil
+end
+
 local gen1, gen1Registered, gen1Warnings, _, gen1Events, gen1Hooks = run("red", {
   ["assets/General Sound Effects/Battle Damage/general.ogg"] = vorbis,
   ["assets/Specific Sound Effects/Named Effects/Damage/exact.ogg"] = vorbis,
@@ -155,19 +167,25 @@ local gen1, gen1Registered, gen1Warnings, _, gen1Events, gen1Hooks = run("red", 
   ["assets/Specific Sound Effects/Evolution/Evolution Complete/complete.ogg"] = vorbis,
 })
 
--- Exact Named Effects load after General Sound Effects and therefore win.
-assert(gen1.sfx.Damage == "mods/sound_effect_replacer/assets/Specific Sound Effects/Named Effects/Damage/exact.ogg")
+-- Exact Named Effects replace General folders in the active routing table.
+-- Legacy paths remain accepted for this migration release, but register private
+-- playlist IDs rather than replacing base game definitions directly.
+local gen1Damage = registeredIdFor(gen1Registered.sfx,
+  "mods/sound_effect_replacer/assets/Specific Sound Effects/Named Effects/Damage/exact.ogg")
+local gen1Move = registeredIdFor(gen1Registered.sfx,
+  "mods/sound_effect_replacer/assets/Specific Sound Effects/Move Sounds/THUNDERBOLT/thunderbolt.ogg")
+local gen1Cry = registeredIdFor(gen1Registered.cries,
+  "mods/sound_effect_replacer/assets/Specific Sound Effects/Pokemon Cries/PIKACHU/pikachu.ogg")
+local gen1Progress = registeredIdFor(gen1Registered.music,
+  "mods/sound_effect_replacer/assets/Specific Sound Effects/Evolution/Evolution In Progress/evolving.ogg")
+local gen1Complete = registeredIdFor(gen1Registered.sfx,
+  "mods/sound_effect_replacer/assets/Specific Sound Effects/Evolution/Evolution Complete/complete.ogg")
+assert(gen1.sfx.Damage == nil and gen1Damage, "exact named effect must route through a registered playlist")
 assert(gen1.sfx.Press_AB == nil, "Ogg Opus exact effect must be skipped")
 assert(gen1.sfx.Start_Menu == nil, "header-mismatched WAV must be skipped so native audio remains")
 assert(gen1.sfx.Save == nil, "unsupported extension must be skipped so native audio remains")
-assert(gen1Registered.sfx.SFX_SOUND_EFFECT_REPLACER_MOVE_THUNDERBOLT
-  == "mods/sound_effect_replacer/assets/Specific Sound Effects/Move Sounds/THUNDERBOLT/thunderbolt.ogg")
-assert(gen1.cries.PIKACHU
-  == "mods/sound_effect_replacer/assets/Specific Sound Effects/Pokemon Cries/PIKACHU/pikachu.ogg")
-assert(gen1Registered.music.Music_SOUND_EFFECT_REPLACER_EVOLUTION_PROGRESS
-  == "mods/sound_effect_replacer/assets/Specific Sound Effects/Evolution/Evolution In Progress/evolving.ogg")
-assert(gen1Registered.sfx.SFX_SOUND_EFFECT_REPLACER_EVOLUTION_COMPLETE
-  == "mods/sound_effect_replacer/assets/Specific Sound Effects/Evolution/Evolution Complete/complete.ogg")
+assert(gen1Move and gen1Cry and gen1Progress and gen1Complete,
+  "move, cry, and evolution playlists must register their selected variants")
 assert(gen1Events["battle.move_used"], "Move Sounds must subscribe to battle.move_used")
 assert(gen1Events["pokemon.evolved"], "Gen 1 Evolution Complete must subscribe to pokemon.evolved")
 assert(gen1Hooks["evolution.check"], "Gen 1 Evolution In Progress must wrap evolution.check")
@@ -199,6 +217,31 @@ local runtimeCueIds = {
   "Battle_22", "Battle_23", "Battle_24", "Battle_25", "Battle_29",
   "Battle_2A", "Battle_2B", "Battle_2E", "Battle_2F", "Battle_31",
 }
+-- Gen 1 progress changes only the pending evolution scene’s selected special song.
+local evolveGame = { data = { audio = {} } }
+local outcome = gen1Hooks["evolution.check"].callback(function() return true end,
+  evolveGame, { species = "PIKACHU" }, { species = "RAICHU" }, { kind = "levelup" })
+assert(outcome == true)
+assert(evolveGame.data.audio.special.evolution == gen1Progress)
+
+local damageSource = latestSound.play({ audio = {} }, "Damage")
+assert(damageSource and damageSource.custom == gen1Damage,
+  "exact named playlist must win over its general folder")
+local crySource = latestSound.playCry({ audio = {} }, "PIKACHU")
+assert(crySource and crySource.custom == gen1Cry,
+  "cry playlist must route through its registered active variant")
+
+gen1Events["battle.move_used"]({
+  battle = { data = { generation = 1 }, animationsOn = function() return true end },
+  move = { id = "THUNDERBOLT" },
+})
+assert(#played == 3 and played[3].id == gen1Move)
+
+gen1Events["pokemon.evolved"]({ mon = { species = "RAICHU" } })
+assert(#played == 4 and played[4].id == gen1Complete)
+
+-- The discovery filter remains deliberately broad for the audio formats
+-- accepted by the bundled runtime, now under the generation-specific tree.
 local formatFiles = {}
 local formatProbeBytes = {
   ogg = vorbis, oga = vorbis, ogv = vorbis,
@@ -206,32 +249,16 @@ local formatProbeBytes = {
 }
 for index, ext in ipairs(runtimeExtensions) do
   local cue = runtimeCueIds[index]
-  formatFiles["assets/Specific Sound Effects/Named Effects/" .. cue .. "/probe." .. ext]
+  formatFiles["assets/Gen 1/Specific Sound Effects/Named Effects/" .. cue .. "/probe." .. ext]
     = formatProbeBytes[ext] or "probe"
 end
-local formatOverrides = run("red", formatFiles)
+local _, formatRegistered = run("red", formatFiles)
 for index, ext in ipairs(runtimeExtensions) do
   local cue = runtimeCueIds[index]
-  assert(formatOverrides.sfx[cue]
-    == "mods/sound_effect_replacer/assets/Specific Sound Effects/Named Effects/" .. cue .. "/probe." .. ext,
+  assert(registeredIdFor(formatRegistered.sfx,
+      "mods/sound_effect_replacer/assets/Gen 1/Specific Sound Effects/Named Effects/" .. cue .. "/probe." .. ext),
     "Runtime extension ." .. ext .. " must be accepted for " .. cue)
 end
-
--- Gen 1 progress changes only the pending evolution scene’s selected special song.
-local evolveGame = { data = { audio = {} } }
-local outcome = gen1Hooks["evolution.check"].callback(function() return true end,
-  evolveGame, { species = "PIKACHU" }, { species = "RAICHU" }, { kind = "levelup" })
-assert(outcome == true)
-assert(evolveGame.data.audio.special.evolution == "Music_SOUND_EFFECT_REPLACER_EVOLUTION_PROGRESS")
-
-gen1Events["battle.move_used"]({
-  battle = { data = { generation = 1 }, animationsOn = function() return true end },
-  move = { id = "THUNDERBOLT" },
-})
-assert(#played == 1 and played[1].id == "SFX_SOUND_EFFECT_REPLACER_MOVE_THUNDERBOLT")
-
-gen1Events["pokemon.evolved"]({ mon = { species = "RAICHU" } })
-assert(#played == 2 and played[2].id == "SFX_SOUND_EFFECT_REPLACER_EVOLUTION_COMPLETE")
 
 local gold, goldRegistered, _, _, goldEvents, goldHooks = run("gold", {
   ["assets/General Sound Effects/Battle Damage/general.ogg"] = vorbis,
@@ -243,27 +270,34 @@ local gold, goldRegistered, _, _, goldEvents, goldHooks = run("gold", {
   ["assets/Specific Sound Effects/Evolution/Evolution In Progress/evolving.ogg"] = vorbis,
   ["assets/Specific Sound Effects/Evolution/Evolution Complete/complete.ogg"] = vorbis,
 })
-assert(gold.sfx.Sfx_Damage == "mods/sound_effect_replacer/assets/Specific Sound Effects/Named Effects/Sfx_Damage/exact.ogg")
-assert(gold.music.Music_HealPokemon
-  == "mods/sound_effect_replacer/assets/General Sound Effects/Healing Machine/heal.ogg")
-assert(goldRegistered.sfx.SFX_SOUND_EFFECT_REPLACER_MOVE_THUNDERBOLT
-  == "mods/sound_effect_replacer/assets/Specific Sound Effects/Move Sounds/THUNDERBOLT/thunderbolt.ogg")
-assert(goldRegistered.sfx.SFX_SOUND_EFFECT_REPLACER_MOVE_FUTURE_SIGHT
-  == "mods/sound_effect_replacer/assets/Specific Sound Effects/Move Sounds/FUTURE_SIGHT/future-sight.ogg")
-assert(gold.cries.CHIKORITA
-  == "mods/sound_effect_replacer/assets/Specific Sound Effects/Pokemon Cries/CHIKORITA/chikorita.ogg")
-assert(gold.music.Music_Evolution
-  == "mods/sound_effect_replacer/assets/Specific Sound Effects/Evolution/Evolution In Progress/evolving.ogg")
-assert(gold.sfx.Sfx_Evolved
-  == "mods/sound_effect_replacer/assets/Specific Sound Effects/Evolution/Evolution Complete/complete.ogg")
+local goldDamage = registeredIdFor(goldRegistered.sfx,
+  "mods/sound_effect_replacer/assets/Specific Sound Effects/Named Effects/Sfx_Damage/exact.ogg")
+local goldHeal = registeredIdFor(goldRegistered.music,
+  "mods/sound_effect_replacer/assets/General Sound Effects/Healing Machine/heal.ogg")
+local goldMove = registeredIdFor(goldRegistered.sfx,
+  "mods/sound_effect_replacer/assets/Specific Sound Effects/Move Sounds/FUTURE_SIGHT/future-sight.ogg")
+local goldCry = registeredIdFor(goldRegistered.cries,
+  "mods/sound_effect_replacer/assets/Specific Sound Effects/Pokemon Cries/CHIKORITA/chikorita.ogg")
+local goldProgress = registeredIdFor(goldRegistered.music,
+  "mods/sound_effect_replacer/assets/Specific Sound Effects/Evolution/Evolution In Progress/evolving.ogg")
+local goldComplete = registeredIdFor(goldRegistered.sfx,
+  "mods/sound_effect_replacer/assets/Specific Sound Effects/Evolution/Evolution Complete/complete.ogg")
+assert(gold.sfx.Sfx_Damage == nil and goldDamage and goldHeal and goldMove and goldCry
+    and goldProgress and goldComplete,
+  "Gold must register each active playlist without overwriting base definitions")
 assert(goldEvents["battle.move_used"], "Gold Move Sounds must subscribe to battle.move_used")
-assert(goldHooks["evolution.check"] == nil, "Gold evolution progress uses Music_Evolution directly")
+assert(goldHooks["evolution.check"] == nil and goldHooks["music.select"],
+  "Gold evolution progress must use the targeted music-selection playlist")
+assert(goldHooks["music.select"].callback(function(song) return song end, "Music_HealPokemon", {}) == goldHeal)
+assert(goldHooks["music.select"].callback(function(song) return song end, "Music_Evolution", {}) == goldProgress)
+assert(latestSound.play({ audio = {} }, "Sfx_Damage").custom == goldDamage)
+assert(latestSound.playCry({ audio = {} }, "CHIKORITA").custom == goldCry)
 
 goldEvents["battle.move_used"]({
   battle = { data = { generation = 2 }, animationsOn = function() return true end },
   move = { id = "FUTURE_SIGHT" },
 })
-assert(#played == 1 and played[1].id == "SFX_SOUND_EFFECT_REPLACER_MOVE_FUTURE_SIGHT")
+assert(#played == 3 and played[3].id == goldMove)
 
 local silver, silverRegistered, _, _, silverEvents, silverHooks = run("silver", {
   ["assets/General Sound Effects/Battle Damage/general.ogg"] = vorbis,
@@ -274,28 +308,57 @@ local silver, silverRegistered, _, _, silverEvents, silverHooks = run("silver", 
   ["assets/Specific Sound Effects/Evolution/Evolution In Progress/evolving.ogg"] = vorbis,
   ["assets/Specific Sound Effects/Evolution/Evolution Complete/complete.ogg"] = vorbis,
 })
-assert(silver.sfx.Sfx_Damage == "mods/sound_effect_replacer/assets/Specific Sound Effects/Named Effects/Sfx_Damage/exact.ogg"
-  and silver.music.Music_HealPokemon == "mods/sound_effect_replacer/assets/General Sound Effects/Healing Machine/heal.ogg",
-  "Silver must select the Gen 2 named-effect and healing-jingle mappings")
-assert(silverRegistered.sfx.SFX_SOUND_EFFECT_REPLACER_MOVE_THUNDERBOLT
-  == "mods/sound_effect_replacer/assets/Specific Sound Effects/Move Sounds/THUNDERBOLT/thunderbolt.ogg"
-  and silver.cries.CHIKORITA == "mods/sound_effect_replacer/assets/Specific Sound Effects/Pokemon Cries/CHIKORITA/chikorita.ogg",
-  "Silver must select the Gen 2 move-sound and cry mappings")
-assert(silver.music.Music_Evolution
-  == "mods/sound_effect_replacer/assets/Specific Sound Effects/Evolution/Evolution In Progress/evolving.ogg"
-  and silver.sfx.Sfx_Evolved
-  == "mods/sound_effect_replacer/assets/Specific Sound Effects/Evolution/Evolution Complete/complete.ogg",
-  "Silver must select the Gen 2 evolution mappings")
-assert(silverEvents["battle.move_used"] and silverHooks["evolution.check"] == nil,
-  "Silver must install the Gen 2 move hook and use Music_Evolution directly")
+assert(silver.sfx.Sfx_Damage == nil
+    and registeredIdFor(silverRegistered.sfx,
+      "mods/sound_effect_replacer/assets/Specific Sound Effects/Named Effects/Sfx_Damage/exact.ogg")
+    and registeredIdFor(silverRegistered.music,
+      "mods/sound_effect_replacer/assets/General Sound Effects/Healing Machine/heal.ogg"),
+  "Silver must select the Gen 2 named-effect and healing-jingle playlists")
+assert(registeredIdFor(silverRegistered.sfx,
+      "mods/sound_effect_replacer/assets/Specific Sound Effects/Move Sounds/THUNDERBOLT/thunderbolt.ogg")
+    and registeredIdFor(silverRegistered.cries,
+      "mods/sound_effect_replacer/assets/Specific Sound Effects/Pokemon Cries/CHIKORITA/chikorita.ogg"),
+  "Silver must select the Gen 2 move-sound and cry playlists")
+assert(registeredIdFor(silverRegistered.music,
+      "mods/sound_effect_replacer/assets/Specific Sound Effects/Evolution/Evolution In Progress/evolving.ogg")
+    and registeredIdFor(silverRegistered.sfx,
+      "mods/sound_effect_replacer/assets/Specific Sound Effects/Evolution/Evolution Complete/complete.ogg"),
+  "Silver must select the Gen 2 evolution playlists")
+assert(silverEvents["battle.move_used"] and silverHooks["evolution.check"] == nil and silverHooks["music.select"],
+  "Silver must install the Gen 2 move and music playlist routes")
+
+-- The canonical Gen 2 tree is independent of Gen 1 and takes priority over a
+-- legacy folder. Music-backed sound-effect categories rotate through the same
+-- narrow music.select bridge used for Gen 2 healing/evolution cues.
+local _, canonicalGen2Registered, _, _, _, canonicalGen2Hooks = run("gold", {
+  ["assets/Gen 2/Specific Sound Effects/Named Effects/Sfx_Damage/canonical.ogg"] = vorbis,
+  ["assets/Specific Sound Effects/Named Effects/Sfx_Damage/legacy.ogg"] = vorbis,
+  ["assets/Gen 2/General Sound Effects/Healing Machine/01-heal.ogg"] = vorbis,
+  ["assets/Gen 2/General Sound Effects/Healing Machine/02-heal.ogg"] = vorbis,
+})
+local canonicalDamage = registeredIdFor(canonicalGen2Registered.sfx,
+  "mods/sound_effect_replacer/assets/Gen 2/Specific Sound Effects/Named Effects/Sfx_Damage/canonical.ogg")
+local canonicalHealA = registeredIdFor(canonicalGen2Registered.music,
+  "mods/sound_effect_replacer/assets/Gen 2/General Sound Effects/Healing Machine/01-heal.ogg")
+local canonicalHealB = registeredIdFor(canonicalGen2Registered.music,
+  "mods/sound_effect_replacer/assets/Gen 2/General Sound Effects/Healing Machine/02-heal.ogg")
+assert(canonicalDamage and canonicalHealA and canonicalHealB
+    and not registeredIdFor(canonicalGen2Registered.sfx,
+      "mods/sound_effect_replacer/assets/Specific Sound Effects/Named Effects/Sfx_Damage/legacy.ogg"),
+  "Gen 2 folders must take precedence over legacy replacements")
+assert(latestSound.play({ audio = {} }, "Sfx_Damage").custom == canonicalDamage)
+assert(canonicalGen2Hooks["music.select"].callback(function(song) return song end, "Music_HealPokemon", {}) == canonicalHealA
+    and canonicalGen2Hooks["music.select"].callback(function(song) return song end, "Music_HealPokemon", {}) == canonicalHealB,
+  "multiple Gen 2 music-backed cue files must rotate in alphabetical order")
 
 local yellow, yellowRegistered = run("yellow", {
   ["assets/Specific Sound Effects/Yellow Pikachu Voice Clips/11/battle.ogg"] = vorbis,
 })
-assert(yellowRegistered.sfx.SFX_SOUND_EFFECT_REPLACER_PIKACHU_PCM_11
-  == "mods/sound_effect_replacer/assets/Specific Sound Effects/Yellow Pikachu Voice Clips/11/battle.ogg")
+local yellowPika = registeredIdFor(yellowRegistered.sfx,
+  "mods/sound_effect_replacer/assets/Specific Sound Effects/Yellow Pikachu Voice Clips/11/battle.ogg")
+assert(yellowPika, "Yellow voice clip must register an active playlist variant")
 local customClip = latestSound.playPikaCry({ audio = { pikaCries = 42 } }, 11)
-assert(customClip and customClip.custom == "SFX_SOUND_EFFECT_REPLACER_PIKACHU_PCM_11")
+assert(customClip and customClip.custom == yellowPika)
 assert(#nativePikaCalls == 0, "Assigned Yellow clip must bypass the native PCM path")
 local nativeClip = latestSound.playPikaCry({ audio = { pikaCries = 42 } }, 12)
 assert(nativeClip and nativeClip.native == 12)
@@ -306,19 +369,41 @@ assert(#nativePikaCalls == 1 and nativePikaCalls[1].index == 12)
 -- must retain exactly one wrapper instead of nesting native fallbacks.
 local pikaWrapper = latestSound.playPikaCry
 local yellowFiles = {
-  ["assets/Specific Sound Effects/Yellow Pikachu Voice Clips/11/battle.ogg"] = vorbis,
+  ["assets/Gen 1/Specific Sound Effects/Yellow Pikachu Voice Clips/11/battle.ogg"] = vorbis,
 }
 local _, yellowReloaded = run("yellow", yellowFiles, nil, true)
 assert(latestSound.playPikaCry == pikaWrapper and latestSound._sfxReplacerPikaWrapped == true,
   "Pikachu wrapper must not be replaced or nested during same-module reinitialization")
 local reloadedCustom = latestSound.playPikaCry({ audio = { pikaCries = 42 } }, 11)
-assert(yellowReloaded.sfx.SFX_SOUND_EFFECT_REPLACER_PIKACHU_PCM_11
-  and reloadedCustom and reloadedCustom.custom == "SFX_SOUND_EFFECT_REPLACER_PIKACHU_PCM_11",
+local reloadedPika = registeredIdFor(yellowReloaded.sfx,
+  "mods/sound_effect_replacer/assets/Gen 1/Specific Sound Effects/Yellow Pikachu Voice Clips/11/battle.ogg")
+assert(reloadedPika and reloadedCustom and reloadedCustom.custom == reloadedPika,
   "reinitialized Pikachu wrapper must use the current replacement clip table")
 local reloadedNative = latestSound.playPikaCry({ audio = { pikaCries = 42 } }, 12)
 assert(reloadedNative and reloadedNative.native == 12
   and #nativePikaCalls == 1 and nativePikaCalls[1].index == 12,
   "reinitialized Pikachu wrapper must call the native fallback exactly once")
+
+-- Easy Custom Music v2 accepts multiple files in one target folder. Sound
+-- Effect Replacer uses the same Gen 1/Gen 2 layout and advances its narrow
+-- sound playlist once per playback request; the legacy path must not win when
+-- a matching generation-specific folder is populated.
+local _, multiRegistered = run("red", {
+  ["assets/Gen 1/Specific Sound Effects/Named Effects/Damage/alpha.ogg"] = vorbis,
+  ["assets/Gen 1/Specific Sound Effects/Named Effects/Damage/bravo.ogg"] = vorbis,
+  ["assets/Specific Sound Effects/Named Effects/Damage/legacy.ogg"] = vorbis,
+})
+local alpha = registeredIdFor(multiRegistered.sfx,
+  "mods/sound_effect_replacer/assets/Gen 1/Specific Sound Effects/Named Effects/Damage/alpha.ogg")
+local bravo = registeredIdFor(multiRegistered.sfx,
+  "mods/sound_effect_replacer/assets/Gen 1/Specific Sound Effects/Named Effects/Damage/bravo.ogg")
+assert(alpha and bravo and not registeredIdFor(multiRegistered.sfx,
+    "mods/sound_effect_replacer/assets/Specific Sound Effects/Named Effects/Damage/legacy.ogg"),
+  "generation-specific files must register in preference to legacy layout files")
+assert(latestSound.play({ audio = {} }, "Damage").custom == alpha
+    and latestSound.play({ audio = {} }, "Damage").custom == bravo
+    and latestSound.play({ audio = {} }, "Damage").custom == alpha,
+  "multiple sound files must cycle in deterministic folder order")
 
 -- PotatoVoxel is optional: no detection means no startup SFX is registered
 -- or played, preserving ordinary Sound Effect Replacer behavior.

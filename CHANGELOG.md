@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.0 — Easy Custom Music v2 structure and playlist compatibility
+
+Sound Effect Replacer now aligns its player-facing asset layout with **Easy Custom Music v2.0.0**. The canonical roots are now `assets/Gen 1/General Sound Effects`, `assets/Gen 1/Specific Sound Effects`, `assets/Gen 2/General Sound Effects`, and `assets/Gen 2/Specific Sound Effects`. Red, Blue, and Yellow load only the Gen 1 tree; Gold and Silver load only the Gen 2 tree.
+
+Every replacement folder can now contain multiple compatible audio files. The mod registers each valid file and rotates through the folder in stable alphabetical order whenever that target is triggered. This applies to General categories, exact Named Effects, Move Sounds, Pokémon Cries, Yellow Pikachu voice clips, Evolution In Progress, and Evolution Complete.
+
+The update preserves the mod’s specialized surfaces rather than treating them as map music. It retains its per-move event behavior, optional per-species cries, Yellow PCM fallback routing, Gen 1 evolution-only retargeting, Gen 2 healing/evolution music selection, conservative file diagnostics, and the optional Lua-authored PotatoVoxel confirmation cue.
+
+To prevent an immediate loss of existing configuration, the old unlabelled `assets/General Sound Effects` and `assets/Specific Sound Effects` paths remain a lower-priority migration fallback in this release. The generation-specific tree takes precedence whenever both contain a replacement for the same target. Move existing files to the appropriate Gen 1 and/or Gen 2 folders.
+
+The regression harness now verifies the legacy migration fallback, Gen 1 and Gen 2 routing, exact-over-general precedence, registered playlist behavior, a two-file rotation, generation-specific precedence over a legacy file, move/evolution/cry behavior, Yellow reload safety, diagnostics, and PotatoVoxel behavior.
+
 ## 0.3.4 — Silver support and Yellow reload safety
 
 Sound Effect Replacer now recognizes **Pokémon Silver** as Generation 2 and uses the established Gen 2 catalog for named effects, General folders, move sounds, evolution music and completion SFX, and species cries. Silver no longer incorrectly uses the Red/Blue/Yellow catalog.
