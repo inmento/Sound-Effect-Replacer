@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.0 — Native Crystal support
+
+Sound Effect Replacer now supports **Pokémon Crystal** on Gen1Recomp `0.2.24` and later. Crystal is routed through the existing Generation II catalog and canonical `assets/Gen 2/` tree, so its named-effect, move-sound, cry, healing-machine, and evolution playlists follow the same independent implementation used for Gold and Silver.
+
+Player-facing diagnostics and logs now refer to **Gen 2 (Gold/Silver/Crystal)** rather than Gold/Silver alone. The release adds a Crystal harness scenario that confirms canonical Gen 2 tree selection, registered private playlist routing, healing/evolution music selection, move-event playback, and Crystal-inclusive status text. It does not package, read, or alter Crystal ROM audio: all optional replacement audio remains player-supplied.
+
 ## 0.4.0 — Easy Custom Music v2 structure and playlist compatibility
 
 Sound Effect Replacer now aligns its player-facing asset layout with **Easy Custom Music v2.0.0**. The canonical roots are now `assets/Gen 1/General Sound Effects`, `assets/Gen 1/Specific Sound Effects`, `assets/Gen 2/General Sound Effects`, and `assets/Gen 2/Specific Sound Effects`. Red, Blue, and Yellow load only the Gen 1 tree; Gold and Silver load only the Gen 2 tree.

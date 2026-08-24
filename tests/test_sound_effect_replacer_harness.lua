@@ -1,5 +1,6 @@
 -- Isolated regression harness for Sound Effect Replacer 0.3.2.
 -- Exercises the public mod-object surface without starting Gen1Recomp.
+local root = arg[1] or "."
 
 local activeGame = "red"
 local played = {}
@@ -14,7 +15,7 @@ package.preload["src.core.GameVersion"] = function()
     get = function() return activeGame end,
     generation = function(id)
       assert(id == activeGame, "Sound Effect Replacer must classify the active game")
-      return (id == "gold" or id == "silver") and 2 or 1
+      return (id == "gold" or id == "silver" or id == "crystal") and 2 or 1
     end,
   }
 end
@@ -136,7 +137,7 @@ local function run(game, files, foundMods, reuseModules)
   function mod:read(relative) return files[relative] end
 
   local mainPath = os.getenv("SOUND_EFFECT_REPLACER_MAIN")
-    or "/home/ubuntu/sound_effect_replacement/main.lua"
+    or (root .. "/main.lua")
   local entry, err = loadfile(mainPath)
   assert(entry, err)
   local init = entry()
@@ -326,6 +327,38 @@ assert(registeredIdFor(silverRegistered.music,
   "Silver must select the Gen 2 evolution playlists")
 assert(silverEvents["battle.move_used"] and silverHooks["evolution.check"] == nil and silverHooks["music.select"],
   "Silver must install the Gen 2 move and music playlist routes")
+
+local crystal, crystalRegistered, _, crystalInfos, crystalEvents, crystalHooks = run("crystal", {
+  ["assets/Gen 2/General Sound Effects/Battle Damage/general.ogg"] = vorbis,
+  ["assets/Gen 2/General Sound Effects/Healing Machine/heal.ogg"] = vorbis,
+  ["assets/Gen 2/Specific Sound Effects/Named Effects/Sfx_Damage/exact.ogg"] = vorbis,
+  ["assets/Gen 2/Specific Sound Effects/Move Sounds/FUTURE_SIGHT/future-sight.ogg"] = vorbis,
+  ["assets/Gen 2/Specific Sound Effects/Pokemon Cries/CHIKORITA/chikorita.ogg"] = vorbis,
+  ["assets/Gen 2/Specific Sound Effects/Evolution/Evolution In Progress/evolving.ogg"] = vorbis,
+  ["assets/Gen 2/Specific Sound Effects/Evolution/Evolution Complete/complete.ogg"] = vorbis,
+})
+local crystalDamage = registeredIdFor(crystalRegistered.sfx,
+  "mods/sound_effect_replacer/assets/Gen 2/Specific Sound Effects/Named Effects/Sfx_Damage/exact.ogg")
+local crystalHeal = registeredIdFor(crystalRegistered.music,
+  "mods/sound_effect_replacer/assets/Gen 2/General Sound Effects/Healing Machine/heal.ogg")
+local crystalMove = registeredIdFor(crystalRegistered.sfx,
+  "mods/sound_effect_replacer/assets/Gen 2/Specific Sound Effects/Move Sounds/FUTURE_SIGHT/future-sight.ogg")
+local crystalCry = registeredIdFor(crystalRegistered.cries,
+  "mods/sound_effect_replacer/assets/Gen 2/Specific Sound Effects/Pokemon Cries/CHIKORITA/chikorita.ogg")
+assert(crystal.sfx.Sfx_Damage == nil and crystalDamage and crystalHeal and crystalMove and crystalCry,
+  "Crystal must register its shared Gen 2 playlists from the canonical asset tree")
+assert(crystalEvents["battle.move_used"] and crystalHooks["evolution.check"] == nil and crystalHooks["music.select"],
+  "Crystal must install the Gen 2 move and music playlist routes")
+assert(crystalHooks["music.select"].callback(function(song) return song end, "Music_HealPokemon", {}) == crystalHeal,
+  "Crystal must select the healing-machine music playlist")
+assert(table.concat(crystalInfos, "\n"):find("Gen 2 (Gold/Silver/Crystal)", 1, true),
+  "Crystal logs must use the Crystal-inclusive Gen 2 label")
+crystalEvents["battle.move_used"]({
+  battle = { data = { generation = 2 }, animationsOn = function() return true end },
+  move = { id = "FUTURE_SIGHT" },
+})
+assert(#played == 1 and played[1].id == crystalMove,
+  "Crystal must play the selected shared Gen 2 move playlist")
 
 -- The canonical Gen 2 tree is independent of Gen 1 and takes priority over a
 -- legacy folder. Music-backed sound-effect categories rotate through the same

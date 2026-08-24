@@ -1,10 +1,10 @@
 # Sound Effect Replacer
 
-**Sound Effect Replacer** lets players replace named sound effects, move-use sounds, evolution audio, optional Pokémon cries, and Yellow Pikachu voice clips in **Pokémon Red, Blue, Yellow, Gold, and Silver**. Version **0.4.0** aligns its player-facing asset structure and multiple-file behavior with [Easy Custom Music v2.0.0](https://github.com/ty-mcdk/easy-custom-music/releases/tag/v2.0.0), while keeping its separate sound-effect-specific runtime routing and safety checks.
+**Sound Effect Replacer** lets players replace named sound effects, move-use sounds, evolution audio, optional Pokémon cries, and Yellow Pikachu voice clips in **Pokémon Red, Blue, Yellow, Gold, Silver, and Crystal**. Version **0.5.0** adds native Crystal routing through the established Gen 2 asset tree while retaining the player-facing asset structure, multiple-file behavior, and safety checks introduced with [Easy Custom Music v2.0.0](https://github.com/ty-mcdk/easy-custom-music/releases/tag/v2.0.0).
 
 ## Version 0.4.0: required layout change
 
-The canonical replacement tree is now split by game generation. **Gen 1 and Gen 2 folders are separate on purpose.** This lets one cue use different audio in Red/Blue/Yellow and Gold/Silver without ambiguity.
+The canonical replacement tree is now split by game generation. **Gen 1 and Gen 2 folders are separate on purpose.** This lets one cue use different audio in Red/Blue/Yellow and Gold/Silver/Crystal without ambiguity.
 
 ```text
 assets/
@@ -19,7 +19,7 @@ assets/
 | Loaded game | Active replacement tree |
 |---|---|
 | Red, Blue, or Yellow | `assets/Gen 1/` |
-| Gold or Silver | `assets/Gen 2/` |
+| Gold, Silver, or Crystal | `assets/Gen 2/` |
 
 > **Migration notice.** Move existing files from the old unlabelled `assets/General Sound Effects/` and `assets/Specific Sound Effects/` paths into the matching `Gen 1` and/or `Gen 2` trees. Version 0.4.0 retains the old layout only as a lower-priority migration fallback. If both layouts contain a replacement for the same target, the generation-specific folder wins.
 
@@ -146,5 +146,7 @@ Test one folder from each active-generation category: a General effect, a Named 
 ## Credits
 
 The drop-in asset-folder workflow and the v0.4.0 generation/multiple-file update are informed by [Easy Custom Music](https://github.com/ty-mcdk/easy-custom-music) by **ty-mcdk**. Sound Effect Replacer remains an independent implementation for sound-effect, cry, move-event, Yellow voice-clip, and evolution surfaces.
+
+> Crystal uses the shared Gen 2 catalog and `assets/Gen 2/` folder. The release does not package, extract, or replace any Crystal ROM audio; it only routes player-supplied replacement files through the current engine APIs.
 
 This project is **AI assisted**, not AI created.

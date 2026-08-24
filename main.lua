@@ -1,6 +1,6 @@
 -- Sound Effect Replacer 0.4.0
 --
--- A content mod for Red, Blue, Yellow, Gold, and Silver. Its player-facing
+-- A content mod for Red, Blue, Yellow, Gold, Silver, and Crystal. Its player-facing
 -- layout follows Easy Custom Music v2’s generation split:
 --
 --   assets/Gen 1/{General,Specific} Sound Effects/<target>/
@@ -1148,7 +1148,7 @@ local Catalog = {
 
   local playing = GameVersion.get()
   local isGen2 = GameVersion.generation(playing) == 2
-  local generationName = isGen2 and "Gold/Silver" or "Red/Blue/Yellow"
+  local generationName = isGen2 and "Gen 2 (Gold/Silver/Crystal)" or "Gen 1 (Red/Blue/Yellow)"
 
   -- These are the audio extensions decoded by the LÖVE 11.5 runtime bundled
   -- with Gen1Recomp 0.2.3: MP3, WAV, FLAC, Ogg Vorbis aliases, and libmodplug
@@ -1222,7 +1222,7 @@ local Catalog = {
     { folder = "Battle Super Effective",    gen1 = { "Super_Effective" },                gold = { "Sfx_SuperEffective" } },
     { folder = "Battle Not Very Effective", gen1 = { "Not_Very_Effective" },             gold = { "Sfx_NotVeryEffective" } },
     { folder = "Battle Faint",              gen1 = { "Faint_Fall", "Faint_Thud" },      gold = { "Sfx_Faint" } },
-    -- Gold has no separately named trainer-encounter SFX in its extracted catalog.
+    -- The shared Gen 2 catalog has no separately named trainer-encounter SFX.
     { folder = "Trainer Appeared",          gen1 = { "Trainer_Appeared" },                gold = {} },
 
     { folder = "Capture Throw",             gen1 = { "Ball_Toss" },                      gold = { "Sfx_ThrowBall" } },
@@ -1426,7 +1426,7 @@ local Catalog = {
     end
   end
 
-  -- Gold/Silver’s healing machine is a one-shot music jingle rather than an
+  -- Gen 2’s healing machine is a one-shot music jingle rather than an
   -- SFX. Route its playlist through the same public music-selection hook used
   -- by Easy Custom Music, without altering unrelated music choices.
   if isGen2 then
@@ -1434,7 +1434,7 @@ local Catalog = {
     if #files > 0 then
       musicPlaylists.Music_HealPokemon = registerMusicPlaylist("HEALING_MACHINE", files)
       generalFolders, generalCues, generalTracks = generalFolders + 1, generalCues + 1, generalTracks + #files
-      mod.log:info("General Sound Effects: Healing Machine loaded %d file(s) in Gold/Silver.", #files)
+      mod.log:info("General Sound Effects: Healing Machine loaded %d file(s) in Gen 2 (Gold/Silver/Crystal).", #files)
     end
   end
 
