@@ -150,3 +150,7 @@ The drop-in asset-folder workflow and the v0.4.0 generation/multiple-file update
 > Crystal uses the shared Gen 2 catalog and `assets/Gen 2/` folder. The release does not package, extract, or replace any Crystal ROM audio; it only routes player-supplied replacement files through the current engine APIs.
 
 This project is **AI assisted**, not AI created.
+
+## License
+
+Unless a file or third-party notice says otherwise, this repository's original source code, configuration, tests, and documentation are licensed under the [MIT License](LICENSE). Read [LICENSE_SCOPE.md](LICENSE_SCOPE.md) for attribution guidance and third-party, asset, user-supplied-source, and game-IP boundaries.
